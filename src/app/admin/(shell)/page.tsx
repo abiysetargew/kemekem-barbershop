@@ -41,8 +41,8 @@ export default async function AdminDashboardPage() {
       .gte("appointment_date", new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]),
   ]);
 
-  const appts = todayAppts || [];
-  const last30List = last30 || [];
+  const appts = (todayAppts as any[]) || [];
+  const last30List = (last30 as any[]) || [];
 
   const completed = appts.filter((a: any) => a.status === "completed").length;
   const cancelled = appts.filter((a: any) => a.status === "cancelled").length;
@@ -68,7 +68,7 @@ export default async function AdminDashboardPage() {
   const revenue = last30List
     .filter((a: any) => a.status === "completed")
     .reduce((sum: number, a: any) => {
-      const svc = (services || []).find((s: any) => s.id === a.service_id);
+      const svc: any = (services || []).find((s: any) => s.id === a.service_id);
       return sum + (Number(svc?.price) || 0);
     }, 0);
 
