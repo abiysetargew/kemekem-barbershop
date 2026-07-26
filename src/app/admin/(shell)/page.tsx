@@ -43,6 +43,8 @@ export default async function AdminDashboardPage() {
 
   const appts = (todayAppts as any[]) || [];
   const last30List = (last30 as any[]) || [];
+  const servicesList = (services as any[]) || [];
+  const barbersList = (barbers as any[]) || [];
 
   const completed = appts.filter((a: any) => a.status === "completed").length;
   const cancelled = appts.filter((a: any) => a.status === "cancelled").length;
@@ -54,7 +56,7 @@ export default async function AdminDashboardPage() {
     serviceCount[a.service_id] = (serviceCount[a.service_id] || 0) + 1;
   });
   const popularServiceId = Object.entries(serviceCount).sort(([, a], [, b]) => b - a)[0]?.[0];
-  const popularService = (services || []).find((s: any) => s.id === popularServiceId);
+  const popularService = servicesList.find((s: any) => s.id === popularServiceId);
 
   // Popular barber
   const barberCount: Record<string, number> = {};
@@ -62,13 +64,13 @@ export default async function AdminDashboardPage() {
     barberCount[a.barber_id] = (barberCount[a.barber_id] || 0) + 1;
   });
   const popularBarberId = Object.entries(barberCount).sort(([, a], [, b]) => b - a)[0]?.[0];
-  const popularBarber = (barbers || []).find((b: any) => b.id === popularBarberId);
+  const popularBarber = barbersList.find((b: any) => b.id === popularBarberId);
 
   // Revenue last 30d (assumes completed)
   const revenue = last30List
     .filter((a: any) => a.status === "completed")
     .reduce((sum: number, a: any) => {
-      const svc: any = (services || []).find((s: any) => s.id === a.service_id);
+      const svc: any = servicesList.find((s: any) => s.id === a.service_id);
       return sum + (Number(svc?.price) || 0);
     }, 0);
 

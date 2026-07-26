@@ -28,13 +28,16 @@ export default async function AdminReportsPage() {
 
   const completed30 = (last30 || []).filter((a: any) => a.status === "completed");
   const completed90 = (last90 || []).filter((a: any) => a.status === "completed");
+  const servicesList = (services as any[]) || [];
+  const barbersList = (barbers as any[]) || [];
+  const customersList = (customers as any[]) || [];
 
   const revenue30 = completed30.reduce((sum: number, a: any) => {
-    const s: any = (services || []).find((x: any) => x.id === a.service_id);
+    const s: any = servicesList.find((x: any) => x.id === a.service_id);
     return sum + (Number(s?.price) || 0);
   }, 0);
   const revenue90 = completed90.reduce((sum: number, a: any) => {
-    const s: any = (services || []).find((x: any) => x.id === a.service_id);
+    const s: any = servicesList.find((x: any) => x.id === a.service_id);
     return sum + (Number(s?.price) || 0);
   }, 0);
 
@@ -47,7 +50,7 @@ export default async function AdminReportsPage() {
     .map(([id, count]) => ({
       id,
       count,
-      name: (services || []).find((s: any) => s.id === id)?.name || "—",
+      name: servicesList.find((s: any) => s.id === id)?.name || "—",
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
@@ -61,7 +64,7 @@ export default async function AdminReportsPage() {
     .map(([id, count]) => ({
       id,
       count,
-      name: (barbers || []).find((b: any) => b.id === id)?.name || "—",
+      name: barbersList.find((b: any) => b.id === id)?.name || "—",
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
