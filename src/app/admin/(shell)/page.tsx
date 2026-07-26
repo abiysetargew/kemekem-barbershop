@@ -69,7 +69,7 @@ export default async function AdminDashboardPage() {
     .filter((a: any) => a.status === "completed")
     .reduce((sum: number, a: any) => {
       const svc = (services || []).find((s: any) => s.id === a.service_id);
-      return sum + ((svc?.price as number) || 0);
+      return sum + (Number(svc?.price) || 0);
     }, 0);
 
   return (

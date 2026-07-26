@@ -31,11 +31,11 @@ export default async function AdminReportsPage() {
 
   const revenue30 = completed30.reduce((sum: number, a: any) => {
     const s = (services || []).find((x: any) => x.id === a.service_id);
-    return sum + ((s?.price as number) || 0);
+    return sum + (Number(s?.price) || 0);
   }, 0);
   const revenue90 = completed90.reduce((sum: number, a: any) => {
     const s = (services || []).find((x: any) => x.id === a.service_id);
-    return sum + ((s?.price as number) || 0);
+    return sum + (Number(s?.price) || 0);
   }, 0);
 
   // Popular services (30d)
