@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const Badge = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
-    variant?: "default" | "secondary" | "outline" | "gold";
+    variant?: "default" | "secondary" | "outline" | "gold" | "destructive";
   }
 >(({ className, variant = "default", ...props }, ref) => {
   const variants: Record<string, string> = {
@@ -12,6 +12,7 @@ const Badge = React.forwardRef<
     secondary: "bg-secondary text-secondary-foreground",
     outline: "border border-border text-foreground",
     gold: "bg-gold-gradient text-white border-0",
+    destructive: "bg-destructive text-destructive-foreground border-0",
   };
   return (
     <div

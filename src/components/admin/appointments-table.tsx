@@ -114,7 +114,7 @@ export function AppointmentsTable({
               ? "gold"
               : "outline";
           return (
-            <Badge variant={variant as any} className="capitalize">
+            <Badge variant={variant} className="capitalize">
               {status}
             </Badge>
           );
