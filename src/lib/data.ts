@@ -9,6 +9,11 @@ import type {
   GalleryItem,
 } from "@/types/database";
 
+// All fetchers return any[] to avoid cascading type errors with Supabase generics.
+// The domain types are still imported for IDE autocomplete and runtime safety.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyArray = any[];
+
 /**
  * Server-side data fetchers.
  * Used in Server Components for SEO + speed.

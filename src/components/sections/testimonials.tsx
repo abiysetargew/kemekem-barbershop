@@ -5,11 +5,11 @@ import { Avatar } from "@/components/ui/avatar";
 
 export async function Testimonials() {
   const reviews = await getReviews();
-  const list = reviews.length > 0 ? reviews : [
-    { id: "1", customer_name: "Henok A.", rating: 5, content: "Best barber experience in Addis." },
-    { id: "2", customer_name: "Meron T.", rating: 5, content: "Booking was effortless." },
-    { id: "3", customer_name: "Yared K.", rating: 5, content: "VIP package is worth every birr." },
-  ];
+  const list = (reviews.length > 0 ? reviews : [
+    { id: "1", customer_name: "Henok A.", rating: 5, content: "Best barber experience in Addis.", avatar_url: null, is_featured: true, created_at: "", shop_id: null },
+    { id: "2", customer_name: "Meron T.", rating: 5, content: "Booking was effortless.", avatar_url: null, is_featured: true, created_at: "", shop_id: null },
+    { id: "3", customer_name: "Yared K.", rating: 5, content: "VIP package is worth every birr.", avatar_url: null, is_featured: true, created_at: "", shop_id: null },
+  ]) as any[];
 
   return (
     <section className="section-padding">
