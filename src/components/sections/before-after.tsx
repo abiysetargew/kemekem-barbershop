@@ -8,12 +8,12 @@ const FALLBACK =
 
 export async function BeforeAfter() {
   const gallery = await getGallery();
-  const items = gallery.length > 0 ? gallery.slice(0, 4) : [
-    { id: "1", image_url: FALLBACK },
-    { id: "2", image_url: "https://images.unsplash.com/photo-1593702288056-fb7fbbd1ec74?auto=format&fit=crop&w=900&q=80" },
-    { id: "3", image_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=80" },
-    { id: "4", image_url: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80" },
-  ];
+  const items = gallery.length > 0 ? gallery.slice(0, 4) : ([
+    { id: "1", image_url: FALLBACK, category: "before_after", title: null, description: null, display_order: 0, created_at: "", shop_id: null },
+    { id: "2", image_url: "https://images.unsplash.com/photo-1593702288056-fb7fbbd1ec74?auto=format&fit=crop&w=900&q=80", category: "before_after", title: null, description: null, display_order: 0, created_at: "", shop_id: null },
+    { id: "3", image_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=80", category: "before_after", title: null, description: null, display_order: 0, created_at: "", shop_id: null },
+    { id: "4", image_url: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80", category: "before_after", title: null, description: null, display_order: 0, created_at: "", shop_id: null },
+  ] as any[]);
 
   return (
     <section className="section-padding bg-foreground text-background">
@@ -37,8 +37,8 @@ export async function BeforeAfter() {
             <FadeIn key={item.id} delay={i * 80}>
               <div className="group relative aspect-[3/4] overflow-hidden rounded-2xl border border-background/10">
                 <Image
-                  src={(item as any).image_url}
-                  alt={(item as any).title || "Transformation"}
+                  src={item.image_url}
+                  alt={item.title || "Transformation"}
                   fill
                   sizes="(max-width: 768px) 100vw, 25vw"
                   className="object-cover transition-transform duration-700 group-hover:scale-110"
