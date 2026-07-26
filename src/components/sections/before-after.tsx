@@ -37,8 +37,8 @@ export async function BeforeAfter() {
             <FadeIn key={item.id} delay={i * 80}>
               <div className="group relative aspect-[3/4] overflow-hidden rounded-2xl border border-background/10">
                 <Image
-                  src={item.image_url}
-                  alt={item.title || "Transformation"}
+                  src={(item as any).image_url}
+                  alt={(item as any).title || "Transformation"}
                   fill
                   sizes="(max-width: 768px) 100vw, 25vw"
                   className="object-cover transition-transform duration-700 group-hover:scale-110"
