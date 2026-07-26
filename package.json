@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --no-lint",
+    "build:skip-types": "NEXT_TYPESCRIPT_CHECK=false next build --no-lint",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"

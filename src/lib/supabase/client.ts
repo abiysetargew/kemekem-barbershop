@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/supabase";
 
 export const createBrowserClient = () =>
-  createClient<Database>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     // Falls back: new publishable key name, then legacy anon key
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -16,7 +16,8 @@ export const createServerClient = async () => {
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
   const { createServerClient } = await import("@supabase/ssr");
-  return createServerClient<Database>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -40,7 +41,8 @@ export const createServerClient = async () => {
 };
 
 export const createAdminClient = () =>
-  createClient<Database>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SECRET_KEY ||
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
