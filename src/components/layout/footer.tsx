@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import {
   getBusinessSettings,
@@ -22,8 +23,14 @@ export async function Footer() {
           {/* Brand */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground">
-                <span className="font-display text-xl font-bold gold-text">K</span>
+              <div className="relative h-12 w-12 overflow-hidden rounded-xl">
+                <Image
+                  src="/logo.png"
+                  alt={settings?.business_name || "Kemekem Barbershop"}
+                  fill
+                  sizes="48px"
+                  className="object-contain"
+                />
               </div>
               <div>
                 <div className="font-display text-lg font-semibold">

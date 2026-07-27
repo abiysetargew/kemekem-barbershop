@@ -68,7 +68,7 @@ export async function generateMetadata(): Promise<Metadata> {
       googleBot: { index: true, follow: true, "max-snippet": -1, "max-image-preview": "large" },
     },
     icons: {
-      icon: settings?.favicon_url || "/favicon.ico",
+      icon: settings?.favicon_url || "/favicon.png",
     },
     manifest: "/manifest.json",
     themeColor: [

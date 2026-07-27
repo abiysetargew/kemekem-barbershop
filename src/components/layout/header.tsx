@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X, Phone } from "lucide-react";
@@ -46,8 +47,15 @@ export function Header() {
     >
       <div className="container-tight flex h-16 items-center justify-between md:h-20">
         <Link href="/" className="group flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background transition-transform group-hover:scale-105">
-            <span className="font-display text-lg font-bold gold-text">K</span>
+          <div className="relative h-10 w-10 overflow-hidden rounded-xl transition-transform group-hover:scale-105">
+            <Image
+              src="/logo.png"
+              alt="Kemekem Barbershop"
+              fill
+              sizes="40px"
+              className="object-contain"
+              priority
+            />
           </div>
           <div className="hidden sm:block">
             <div className="font-display text-base font-semibold leading-tight">
@@ -111,8 +119,19 @@ export function Header() {
       {open && (
         <div className="fixed inset-0 z-50 bg-background md:hidden">
           <div className="flex h-16 items-center justify-between px-4">
-            <Link href="/" className="font-display text-lg font-semibold">
-              Kemekem
+            <Link href="/" className="flex items-center gap-2">
+              <div className="relative h-9 w-9 overflow-hidden rounded-xl">
+                <Image
+                  src="/logo.png"
+                  alt="Kemekem Barbershop"
+                  fill
+                  sizes="36px"
+                  className="object-contain"
+                />
+              </div>
+              <span className="font-display text-lg font-semibold">
+                Kemekem
+              </span>
             </Link>
             <button
               onClick={() => setOpen(false)}
