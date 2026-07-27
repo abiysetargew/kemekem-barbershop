@@ -113,7 +113,7 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
-      <DashboardCharts last30={last30List as any[]} services={services as any[]} />
+      <DashboardCharts last30={last30List as any[]} services={servicesList as any[]} />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

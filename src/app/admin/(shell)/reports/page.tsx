@@ -1,49 +1,32 @@
-import { createAdminClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { TrendingUp, Users, Scissors, Repeat } from "lucide-react";
+import { SEED_SERVICES, SEED_BARBERS } from "@/lib/seed-data";
 
 export const metadata = { title: "Reports" };
 
 export default async function AdminReportsPage() {
-  const supabase = createAdminClient();
-  const today = new Date();
-  const last30Start = new Date(today.getTime() - 30 * 86400000);
-  const last90Start = new Date(today.getTime() - 90 * 86400000);
+  const last30: any[] = [];
+  const last90: any[] = [];
+  const servicesList = SEED_SERVICES as any[];
+  const barbersList = SEED_BARBERS as any[];
+  const customersList: any[] = [];
 
-  const [{ data: last30 }, { data: last90 }, { data: services }, { data: barbers }, { data: customers }] =
-    await Promise.all([
-      supabase
-        .from("appointments")
-        .select("*")
-        .gte("appointment_date", last30Start.toISOString().split("T")[0]),
-      supabase
-        .from("appointments")
-        .select("*")
-        .gte("appointment_date", last90Start.toISOString().split("T")[0]),
-      supabase.from("services").select("*"),
-      supabase.from("barbers").select("*"),
-      supabase.from("customers").select("*"),
-    ]);
-
-  const completed30 = (last30 || []).filter((a: any) => a.status === "completed");
-  const completed90 = (last90 || []).filter((a: any) => a.status === "completed");
-  const servicesList = (services as any[]) || [];
-  const barbersList = (barbers as any[]) || [];
-  const customersList = (customers as any[]) || [];
+  const completed30 = last30.filter((a) => a.status === "completed");
+  const completed90 = last90.filter((a) => a.status === "completed");
 
   const revenue30 = completed30.reduce((sum: number, a: any) => {
-    const s: any = servicesList.find((x: any) => x.id === a.service_id);
+    const s = servicesList.find((x) => x.id === a.service_id);
     return sum + (Number(s?.price) || 0);
   }, 0);
   const revenue90 = completed90.reduce((sum: number, a: any) => {
-    const s: any = servicesList.find((x: any) => x.id === a.service_id);
+    const s = servicesList.find((x) => x.id === a.service_id);
     return sum + (Number(s?.price) || 0);
   }, 0);
 
   // Popular services (30d)
   const svcCount: Record<string, number> = {};
-  (last30 || []).forEach((a: any) => {
+  last30.forEach((a: any) => {
     svcCount[a.service_id] = (svcCount[a.service_id] || 0) + 1;
   });
   const popularServices = Object.entries(svcCount)
@@ -57,7 +40,7 @@ export default async function AdminReportsPage() {
 
   // Popular barbers (30d)
   const brbCount: Record<string, number> = {};
-  (last30 || []).forEach((a: any) => {
+  last30.forEach((a: any) => {
     brbCount[a.barber_id] = (brbCount[a.barber_id] || 0) + 1;
   });
   const popularBarbers = Object.entries(brbCount)
@@ -70,7 +53,7 @@ export default async function AdminReportsPage() {
     .slice(0, 5);
 
   // Repeat customers
-  const repeat = (customers || []).filter((c: any) => c.visit_count >= 2).length;
+  const repeat = customersList.filter((c: any) => c.visit_count >= 2).length;
 
   return (
     <div className="space-y-6">
