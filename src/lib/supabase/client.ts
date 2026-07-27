@@ -1,14 +1,29 @@
 import { createClient } from "@supabase/supabase-js";
 
+function getPublishableKey() {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+function getSecretKey() {
+  return (
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export const createBrowserClient = () =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    // Falls back: new publishable key name, then legacy anon key
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getPublishableKey(),
     {
       auth: { persistSession: true, autoRefreshToken: true },
+      global: {
+        headers: { apikey: getPublishableKey() },
+      },
     }
   );
 
@@ -19,8 +34,7 @@ export const createServerClient = async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return createServerClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getPublishableKey(),
     {
       cookies: {
         getAll() {
@@ -36,6 +50,9 @@ export const createServerClient = async () => {
           }
         },
       },
+      global: {
+        headers: { apikey: getPublishableKey() },
+      },
     }
   );
 };
@@ -44,7 +61,11 @@ export const createAdminClient = () =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createClient<any>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
+    getSecretKey(),
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        headers: { apikey: getSecretKey() },
+      },
+    }
   );
