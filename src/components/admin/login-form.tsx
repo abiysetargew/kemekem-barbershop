@@ -1,32 +1,46 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createBrowserClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+
+const ADMIN_PASSWORD = "kemekem2026";
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // If already authenticated, skip the login page
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("kemekem_admin") === "true"
+    ) {
+      const next = searchParams.get("next") || "/admin";
+      router.replace(next);
+    }
+  }, [router, searchParams]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const supabase = createBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    // Simple password gate for now. Replace with real Supabase auth later.
+    if (password === ADMIN_PASSWORD) {
+      sessionStorage.setItem("kemekem_admin", "true");
+      // Mirror as cookie so SSR sees it (1 day)
+      document.cookie = `kemekem_admin=true; path=/; max-age=86400; SameSite=Lax`;
       toast.success("Welcome back!");
-      router.push("/admin");
+      const next = searchParams.get("next") || "/admin";
+      router.push(next);
       router.refresh();
-    } catch (e: any) {
-      toast.error(e.message || "Invalid credentials");
-    } finally {
+    } else {
+      toast.error("Invalid password");
       setLoading(false);
     }
   };
@@ -34,14 +48,14 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">Email (optional)</Label>
         <Input
           id="email"
           type="email"
-          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="admin@kemekem.com"
+          autoComplete="off"
         />
       </div>
       <div className="space-y-1.5">
@@ -53,7 +67,11 @@ export function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
+          autoComplete="off"
         />
+        <p className="text-xs text-muted-foreground">
+          Demo password: <span className="font-mono">kemekem2026</span>
+        </p>
       </div>
       <Button type="submit" variant="gold" size="lg" className="w-full" disabled={loading}>
         {loading ? (

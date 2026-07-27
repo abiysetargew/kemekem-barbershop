@@ -1,14 +1,15 @@
 "use client";
 import { LogOut } from "lucide-react";
-import { createBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export function LogoutButton() {
   const router = useRouter();
   const onLogout = async () => {
-    const supabase = createBrowserClient();
-    await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("kemekem_admin");
+      document.cookie = "kemekem_admin=; path=/; max-age=0";
+    }
     toast.success("Signed out");
     router.push("/admin/login");
     router.refresh();
