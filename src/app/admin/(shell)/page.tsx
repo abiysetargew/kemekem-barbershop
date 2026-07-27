@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createAdminClient } from "@/lib/supabase/client";
 import {
   Calendar,
   CheckCircle2,
@@ -13,38 +12,17 @@ import { formatCurrency } from "@/lib/utils";
 import { DashboardCharts } from "@/components/admin/dashboard-charts";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SEED_BARBERS, SEED_SERVICES } from "@/lib/seed-data";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function AdminDashboardPage() {
-  const supabase = createAdminClient();
-  const today = new Date().toISOString().split("T")[0];
-
-  const [
-    { data: todayAppts },
-    { count: totalCustomers },
-    { data: barbers },
-    { data: services },
-    { data: last30 },
-  ] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select("*")
-      .eq("appointment_date", today)
-      .order("start_time"),
-    supabase.from("customers").select("*", { count: "exact", head: true }),
-    supabase.from("barbers").select("*").eq("is_active", true),
-    supabase.from("services").select("*"),
-    supabase
-      .from("appointments")
-      .select("*")
-      .gte("appointment_date", new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]),
-  ]);
-
-  const appts = (todayAppts as any[]) || [];
-  const last30List = (last30 as any[]) || [];
-  const servicesList = (services as any[]) || [];
-  const barbersList = (barbers as any[]) || [];
+  // Use seed data for demo (no Supabase). All admin pages will show seed data.
+  const appts: any[] = [];
+  const last30List: any[] = [];
+  const servicesList = SEED_SERVICES as any[];
+  const barbersList = SEED_BARBERS as any[];
+  const totalCustomers = 0;
 
   const completed = appts.filter((a: any) => a.status === "completed").length;
   const cancelled = appts.filter((a: any) => a.status === "cancelled").length;
