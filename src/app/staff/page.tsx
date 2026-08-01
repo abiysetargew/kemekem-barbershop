@@ -22,7 +22,8 @@ import {
   useBranches,
 } from "@/lib/store";
 import {
-  updateAppointmentStatus,
+  cancelAppointment as cancelBookingFn,
+  rescheduleAppointment as rescheduleFn,
   type AppointmentStatus,
 } from "@/lib/booking";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -35,7 +36,7 @@ const STATUS_ORDER: AppointmentStatus[] = [
 ];
 
 export default function StaffPage() {
-  const [appointments, setAppointments] = useAppointments();
+  const [appointments, , updateOne] = useAppointments();
   const [services] = useServices();
   const [barbers] = useBarbers();
   const [branches] = useBranches();
@@ -64,9 +65,8 @@ export default function StaffPage() {
     );
   }, [appointments, date, branchFilter, barberFilter, search]);
 
-  const update = async (id: string, status: AppointmentStatus) => {
-    await updateAppointmentStatus(id, status);
-    setAppointments([...appointments]);
+  const update = (id: string, status: AppointmentStatus) => {
+    updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
   };
 
   const filteredBarbers = branchFilter === "all"

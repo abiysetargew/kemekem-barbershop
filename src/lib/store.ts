@@ -135,7 +135,17 @@ function useStoredCollection<T extends { id: string }>(
     [key, data]
   );
 
-  return [data, update, hydrated] as const;
+  const updateOne = useCallback(
+    (id: string, mutator: (item: T) => T) => {
+      const next = data.map((item) => (item.id === id ? mutator(item) : item));
+      setData(next);
+      save(key, next);
+      window.dispatchEvent(new CustomEvent("kemekem:update"));
+    },
+    [key, data]
+  );
+
+  return [data, update, updateOne, hydrated] as const;
 }
 
 function useStoredValue<T>(key: string, fallback: T) {

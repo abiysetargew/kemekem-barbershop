@@ -20,10 +20,7 @@ import {
 } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Appointment } from "@/types/database";
-import {
-  updateAppointmentStatus,
-  type AppointmentStatus,
-} from "@/lib/booking";
+import { type AppointmentStatus } from "@/lib/booking";
 
 const STATUS_FLOW: AppointmentStatus[] = [
   "confirmed",
@@ -53,7 +50,7 @@ const STATUS_STYLES: Record<AppointmentStatus, string> = {
 };
 
 export function BookingsView() {
-  const [appointments, setAppointments] = useAppointments();
+  const [appointments, , updateOne] = useAppointments();
   const [services] = useServices();
   const [barbers] = useBarbers();
   const [branches] = useBranches();
@@ -86,9 +83,8 @@ export function BookingsView() {
     return list;
   }, [appointments, statusFilter, search, dateFilter]);
 
-  const onStatus = async (id: string, status: AppointmentStatus) => {
-    await updateAppointmentStatus(id, status);
-    setAppointments([...appointments]);
+  const onStatus = (id: string, status: AppointmentStatus) => {
+    updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
   };
 
   return (
