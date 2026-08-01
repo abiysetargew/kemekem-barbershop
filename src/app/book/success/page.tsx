@@ -1,75 +1,110 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Calendar, Clock, MapPin, User, Scissors, ArrowRight } from "lucide-react";
+import {
+  CheckCircle2,
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  Scissors,
+  ArrowRight,
+  Copy,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@/lib/supabase/client";
 import { FadeIn } from "@/components/ui/fade-in";
 import { formatCurrency } from "@/lib/utils";
 import { ShareButton } from "@/components/layout/share-button";
-import { CopyButton } from "@/components/ui/copy-button";
+import { useAppointments, useServices, useBarbers, useBranches } from "@/lib/store";
+import type { Appointment } from "@/types/database";
 
-export const metadata = { title: "Booking Confirmed" };
+export default function SuccessPage() {
+  const searchParams = useSearchParams();
+  const id = searchParams?.get("id") || "";
+  const [appointments] = useAppointments();
+  const [services] = useServices();
+  const [barbers] = useBarbers();
+  const [branches] = useBranches();
+  const [copied, setCopied] = useState(false);
 
-export default async function SuccessPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ id?: string }>;
-}) {
-  const { id } = await searchParams;
-  const supabase = await createServerClient();
-  const { data: appt } = id
-    ? await supabase.from("appointments").select("*").eq("id", id).single()
-    : { data: null };
+  const appt = appointments.find((a) => a.id === id) as Appointment | undefined;
 
   if (!appt) {
     return (
       <section className="min-h-screen pt-32 pb-20">
-        <div className="container-tight text-center">
+        <div className="container-tight max-w-2xl text-center">
           <h1 className="heading-2">Booking not found</h1>
-          <p className="mt-3 text-muted-foreground">Please check your link or contact us.</p>
-          <Button asChild variant="gold" className="mt-6">
-            <Link href="/">Back home</Link>
-          </Button>
+          <p className="mt-3 text-muted-foreground">
+            The booking may be in another browser. Try booking again.
+          </p>
+          <Link href="/book">
+            <Button variant="gold" className="mt-6">Book again</Button>
+          </Link>
         </div>
       </section>
     );
   }
 
-  const [{ data: branch }, { data: service }, { data: barber }] = await Promise.all([
-    supabase.from("branches").select("*").eq("id", (appt as any).branch_id).single(),
-    supabase.from("services").select("*").eq("id", (appt as any).service_id).single(),
-    supabase.from("barbers").select("*").eq("id", (appt as any).barber_id).single(),
-  ]);
+  const svc = services.find((s) => s.id === appt.service_id);
+  const barber = barbers.find((b) => b.id === appt.barber_id);
+  const branch = branches.find((b) => b.id === appt.branch_id);
+
+  const copy = () => {
+    if (typeof navigator !== "undefined") {
+      navigator.clipboard.writeText(appt.appointment_number);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  };
 
   return (
     <section className="min-h-screen pt-32 pb-20">
       <div className="container-tight max-w-3xl">
         <FadeIn>
           <div className="text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30">
+            <div className="mx-auto flex h-20 w-20 animate-pulse items-center justify-center rounded-full border-2 border-foreground bg-foreground/10 text-foreground">
               <CheckCircle2 className="h-10 w-10" />
             </div>
-            <h1 className="heading-1 mt-6 text-balance">You&apos;re all set!</h1>
+            <h1 className="display mt-6 text-5xl sm:text-6xl">
+              You&apos;re all set.
+            </h1>
             <p className="mt-3 text-muted-foreground">
-              We&apos;ve sent your confirmation. See you soon.
+              We can&apos;t wait to see you. Save your appointment number below.
             </p>
           </div>
         </FadeIn>
 
         <FadeIn delay={120}>
-          <div className="luxury-card mt-10 overflow-hidden">
-            <div className="bg-gold-gradient p-6 text-white">
-              <div className="text-xs uppercase tracking-wider opacity-80">Appointment</div>
-              <CopyButton value={(appt as any).appointment_number} />
+          <div className="mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+            <div className="bg-foreground p-6 text-background">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-background/60">
+                    Confirmation number
+                  </div>
+                  <div className="display mt-1 text-3xl font-semibold">
+                    {appt.appointment_number}
+                  </div>
+                </div>
+                <button
+                  onClick={copy}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-background/15 backdrop-blur hover:bg-background/25"
+                  aria-label="Copy"
+                >
+                  {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-border p-6 text-sm">
               <Row icon={Scissors} label="Service">
-                {(service as any)?.name} · {formatCurrency((service as any)?.price)}
+                {svc?.name} · {svc ? formatCurrency(svc.price) : ""}
               </Row>
-              <Row icon={User} label="Barber">{(barber as any)?.name}</Row>
-              <Row icon={MapPin} label="Branch">{(branch as any)?.name}</Row>
+              <Row icon={User} label="Barber">{barber?.name || "Any barber"}</Row>
+              <Row icon={MapPin} label="Branch">{branch?.name}</Row>
               <Row icon={Calendar} label="Date">
-                {new Date((appt as any).appointment_date).toLocaleDateString("en-US", {
+                {new Date(appt.appointment_date).toLocaleDateString("en-US", {
                   weekday: "long",
                   year: "numeric",
                   month: "long",
@@ -77,19 +112,20 @@ export default async function SuccessPage({
                 })}
               </Row>
               <Row icon={Clock} label="Time">
-                {(appt as any).start_time.slice(0, 5)} – {(appt as any).end_time.slice(0, 5)}
+                {appt.start_time.slice(0, 5)} – {appt.end_time.slice(0, 5)}
               </Row>
+              <Row icon={User} label="Phone">{appt.customer_phone}</Row>
             </div>
           </div>
         </FadeIn>
 
         <FadeIn delay={240}>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild variant="outline">
-              <Link href={`/manage/${(appt as any).cancel_token}`}>Manage booking</Link>
+            <Button asChild variant="outline" size="lg">
+              <Link href={`/manage/${appt.cancel_token}`}>Manage booking</Link>
             </Button>
             <ShareButton />
-            <Button asChild variant="gold">
+            <Button asChild variant="gold" size="lg">
               <Link href="/">
                 Back home
                 <ArrowRight className="ml-1 h-4 w-4" />
@@ -117,8 +153,8 @@ function Row({
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="font-medium">{children}</div>
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="font-display text-base">{children}</div>
       </div>
     </div>
   );
