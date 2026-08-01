@@ -16,13 +16,13 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // If already authenticated, skip the login page
+      // If already authenticated, skip the login page
   useEffect(() => {
     if (
       typeof window !== "undefined" &&
       sessionStorage.getItem("kemekem_admin") === "true"
     ) {
-      const next = searchParams.get("next") || "/admin";
+      const next = searchParams.get("next") || "/admin/dashboard";
       router.replace(next);
     }
   }, [router, searchParams]);
@@ -30,15 +30,12 @@ export function LoginForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simple password gate for now. Replace with real Supabase auth later.
     if (password === ADMIN_PASSWORD) {
       sessionStorage.setItem("kemekem_admin", "true");
-      // Mirror as cookie so SSR sees it (1 day)
       document.cookie = `kemekem_admin=true; path=/; max-age=86400; SameSite=Lax`;
       toast.success("Welcome back!");
-      const next = searchParams.get("next") || "/admin";
-      router.push(next);
-      router.refresh();
+      const next = searchParams.get("next") || "/admin/dashboard";
+      window.location.href = next;
     } else {
       toast.error("Invalid password");
       setLoading(false);
