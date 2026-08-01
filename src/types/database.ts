@@ -60,11 +60,22 @@ export interface Customer {
   phone: string;
   email: string | null;
   notes: string | null;
+  birthday: string | null; // YYYY-MM-DD
   visit_count: number;
   last_visit_at: string | null;
+  total_spent: number;
   created_at: string;
   updated_at: string;
 }
+
+export type PaymentStatus = "unpaid" | "paid";
+export type PaymentMethod = "cash" | "card" | "telebirr" | "transfer" | "other";
+export type CancelReason =
+  | "customer_no_show"
+  | "customer_canceled"
+  | "barber_unavailable"
+  | "shop_closed"
+  | "other";
 
 export interface Appointment {
   id: string;
@@ -82,6 +93,12 @@ export interface Appointment {
   end_time: string; // HH:mm:ss
   status: AppointmentStatus;
   cancel_token: string;
+  payment_status: PaymentStatus;
+  payment_method: PaymentMethod | null;
+  paid_at: string | null;
+  paid_amount: number | null;
+  cancel_reason: CancelReason | null;
+  referred_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -161,4 +178,5 @@ export interface BookingFormData {
   customer_name: string;
   customer_phone: string;
   notes?: string;
+  referred_by?: string;
 }

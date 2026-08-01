@@ -47,7 +47,7 @@ const STORAGE = {
   customers: "kemekem.customers",
 } as const;
 
-const SEED_FLAG = "kemekem.seeded.v2";
+const SEED_FLAG = "kemekem.seeded.v5";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -81,12 +81,36 @@ export function ensureSeeded() {
   save(STORAGE.socials, SEED_SOCIALS);
   save(STORAGE.gallery, SEED_GALLERY);
   save(STORAGE.settings, SEED_SETTINGS);
-  // Seed bookings + customers so admin/staff screens are populated.
-  // Customers & appointments are deduplicated on save.
+  // Backfill defaults for new fields in any pre-existing bookings
   const existing = load<any[]>(STORAGE.appointments, []);
+  const patchedAppts = existing.map((a) => ({
+    payment_status: "unpaid",
+    payment_method: null,
+    paid_at: null,
+    paid_amount: null,
+    cancel_reason: null,
+    referred_by: null,
+    ...a,
+  }));
   if (existing.length === 0) {
     save(STORAGE.appointments, SAMPLE_BOOKINGS);
+  } else {
+    save(STORAGE.appointments, patchedAppts);
   }
+  const existingCustomers = load<any[]>(STORAGE.customers, []);
+  const patchedCustomers = existingCustomers.map((c) => ({
+    birthday: null,
+    total_spent: 0,
+    ...c,
+  }));
+  if (existingCustomers.length === 0) {
+    save(STORAGE.customers, SAMPLE_CUSTOMERS);
+  } else {
+    save(STORAGE.customers, patchedCustomers);
+  }
+  localStorage.setItem(SEED_FLAG, "1");
+  emit();
+}
   const existingCustomers = load<any[]>(STORAGE.customers, []);
   if (existingCustomers.length === 0) {
     save(STORAGE.customers, SAMPLE_CUSTOMERS);

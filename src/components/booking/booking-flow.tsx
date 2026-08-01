@@ -99,6 +99,7 @@ export function BookingFlow() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [referredBy, setReferredBy] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const selectedBranch = branches.find((b) => b.id === branchId);
@@ -183,6 +184,7 @@ export function BookingFlow() {
         customer_name: name,
         customer_phone: phone,
         notes: notes || null,
+        referred_by: referredBy || null,
         branch_id: branchId,
         service_id: serviceId,
         barber_id: target.id,
@@ -474,9 +476,28 @@ export function BookingFlow() {
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Anything we should know?"
-                        rows={3}
+                        rows={2}
                         className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
                       />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        How did you hear about us? (optional)
+                      </label>
+                      <select
+                        value={referredBy}
+                        onChange={(e) => setReferredBy(e.target.value)}
+                        className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="">— Select —</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="friend">Friend / Family</option>
+                        <option value="walk-in">Walked past</option>
+                        <option value="google">Google</option>
+                        <option value="other">Other</option>
+                      </select>
                     </div>
 
                     <div className="rounded-2xl bg-muted/40 p-4 text-sm">

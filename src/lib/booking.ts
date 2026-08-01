@@ -24,6 +24,15 @@ export type AppointmentStatus =
   | "cancelled"
   | "no_show";
 
+export type CancelReason =
+  | "customer_no_show"
+  | "customer_canceled"
+  | "barber_unavailable"
+  | "shop_closed"
+  | "other";
+
+export type PaymentMethod = "cash" | "card" | "telebirr" | "transfer" | "other";
+
 function isBrowser() {
   return typeof window !== "undefined";
 }
@@ -162,6 +171,12 @@ export async function createBooking(data: BookingFormData): Promise<Appointment>
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `tok-${Date.now()}`,
+    payment_status: "unpaid",
+    payment_method: null,
+    paid_at: null,
+    paid_amount: null,
+    cancel_reason: null,
+    referred_by: data.referred_by || null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -213,8 +228,45 @@ export async function rescheduleAppointment(
   saveArr(BOOKINGS_KEY, all);
 }
 
-export async function cancelAppointment(id: string): Promise<void> {
-  return updateAppointmentStatus(id, "cancelled");
+export async function cancelAppointment(
+  id: string,
+  reason?: string
+): Promise<void> {
+  const all = loadArr<any>(BOOKINGS_KEY);
+  const idx = all.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  all[idx].status = "cancelled";
+  all[idx].cancel_reason = reason || null;
+  all[idx].updated_at = new Date().toISOString();
+  saveArr(BOOKINGS_KEY, all);
+}
+
+export async function markAppointmentPaid(
+  id: string,
+  method: "cash" | "card" | "telebirr" | "transfer" | "other",
+  amount: number
+): Promise<void> {
+  const all = loadArr<any>(BOOKINGS_KEY);
+  const idx = all.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  all[idx].payment_status = "paid";
+  all[idx].payment_method = method;
+  all[idx].paid_at = new Date().toISOString();
+  all[idx].paid_amount = amount;
+  all[idx].updated_at = new Date().toISOString();
+  saveArr(BOOKINGS_KEY, all);
+}
+
+export async function unmarkAppointmentPaid(id: string): Promise<void> {
+  const all = loadArr<any>(BOOKINGS_KEY);
+  const idx = all.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  all[idx].payment_status = "unpaid";
+  all[idx].paid_at = null;
+  all[idx].paid_amount = null;
+  all[idx].payment_method = null;
+  all[idx].updated_at = new Date().toISOString();
+  saveArr(BOOKINGS_KEY, all);
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {

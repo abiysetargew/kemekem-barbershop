@@ -11,13 +11,15 @@ import {
   Scissors,
   ArrowRight,
   Copy,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/ui/fade-in";
 import { formatCurrency } from "@/lib/utils";
 import { ShareButton } from "@/components/layout/share-button";
-import { useAppointments, useServices, useBarbers, useBranches } from "@/lib/store";
+import { useAppointments, useServices, useBarbers, useBranches, useBusinessSettings } from "@/lib/store";
 import type { Appointment } from "@/types/database";
+import { Receipt } from "@/components/booking/receipt";
 
 export default function SuccessPage() {
   const searchParams = useSearchParams();
@@ -26,6 +28,7 @@ export default function SuccessPage() {
   const [services] = useServices();
   const [barbers] = useBarbers();
   const [branches] = useBranches();
+  const [settings] = useBusinessSettings();
   const [copied, setCopied] = useState(false);
 
   const appt = appointments.find((a) => a.id === id) as Appointment | undefined;
@@ -124,6 +127,14 @@ export default function SuccessPage() {
             <Button asChild variant="outline" size="lg">
               <Link href={`/manage/${appt.cancel_token}`}>Manage booking</Link>
             </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => window.print()}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print / Save PDF
+            </Button>
             <ShareButton />
             <Button asChild variant="gold" size="lg">
               <Link href="/">
@@ -133,6 +144,11 @@ export default function SuccessPage() {
             </Button>
           </div>
         </FadeIn>
+      </div>
+
+      {/* Hidden receipt for printing — shown when window.print() invoked */}
+      <div className="hidden print:block">
+        <Receipt appt={appt} svc={svc} barber={barber} branch={branch} settings={settings} />
       </div>
     </section>
   );
