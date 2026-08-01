@@ -19,8 +19,9 @@ import {
   useServices,
   useBarbers,
 } from "@/lib/store";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, timeToMinutes, minutesToTime } from "@/lib/utils";
 import { toast } from "sonner";
+import { ScissorsLoader } from "@/components/visual";
 
 const STEPS = [
   { id: 1, title: "Branch", icon: MapPin },
@@ -29,13 +30,59 @@ const STEPS = [
   { id: 4, title: "Time", icon: Calendar },
 ];
 
+interface Slot {
+  time: string;
+  available: boolean;
+}
+
+function computeSlots(
+  barber: any,
+  service: any,
+  date: string,
+  existing: any[]
+): Slot[] {
+  if (!barber || !service) return [];
+  const interval = 60;
+  const duration = service.duration_minutes || 60;
+  const wh = barber.working_hours || { open: "08:00", close: "20:00" };
+  const openMin = timeToMinutes(wh.open);
+  const closeMin = timeToMinutes(wh.close);
+  const dayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  const dayName = dayNames[new Date(date + "T00:00:00").getDay()];
+  if (barber.working_days && barber.working_days.length > 0 && !barber.working_days.includes(dayName)) {
+    return [];
+  }
+
+  const slots: Slot[] = [];
+  for (let m = openMin; m + duration <= closeMin; m += interval) {
+    const startStr = minutesToTime(m);
+    const endStr = minutesToTime(m + duration);
+    const now = new Date();
+    const slotDate = new Date(date + "T00:00:00");
+    const isToday = slotDate.toDateString() === now.toDateString();
+    if (isToday) {
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (m <= nowMin) continue;
+    }
+    const conflict = existing.some((a) => {
+      if (a.status === "cancelled" || a.no_show) return false;
+      const aStart = timeToMinutes((a.start_time as string).slice(0, 5));
+      const aEnd = timeToMinutes((a.end_time as string).slice(0, 5));
+      return m < aEnd && m + duration > aStart;
+    });
+    slots.push({ time: startStr, available: !conflict });
+  }
+  return slots;
+}
+
 export function BookingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [branches] = useBranches();
-  const [services] = useServices();
+  const [services, setServices] = useServices();
   const [barbers] = useBarbers();
+  const [appointments, setAppointments] = useAppointments();
 
   const [step, setStep] = useState(1);
   const [branchId, setBranchId] = useState<string>(
@@ -52,8 +99,6 @@ export function BookingFlow() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
-  const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const selectedBranch = branches.find((b) => b.id === branchId);
@@ -62,10 +107,23 @@ export function BookingFlow() {
 
   const branchFilteredBarbers = useMemo(() => {
     if (!branchId) return barbers.filter((b) => b.is_active);
-    return barbers.filter((b) => b.is_active && (!b.branch_id || b.branch_id === branchId));
+    return barbers.filter(
+      (b) => b.is_active && (!b.branch_id || b.branch_id === branchId)
+    );
   }, [barbers, branchId]);
 
   const visibleServices = services.filter((s) => s.is_visible);
+
+  // Compute slots directly client-side (no API)
+  const slots = useMemo(() => {
+    if (!date || !serviceId) return [];
+    const target =
+      barberId === "any"
+        ? branchFilteredBarbers[0]
+        : branchFilteredBarbers.find((b) => b.id === barberId);
+    if (!target) return [];
+    return computeSlots(target, selectedService, date, appointments);
+  }, [date, serviceId, barberId, branchFilteredBarbers, selectedService, appointments]);
 
   const canNext = () => {
     if (step === 1) return !!branchId;
@@ -75,49 +133,108 @@ export function BookingFlow() {
     return false;
   };
 
-  useEffect(() => {
-    if (step !== 4 || !date || !serviceId) return;
-    const target = barberId === "any" ? branchFilteredBarbers[0]?.id : barberId;
-    if (!target) return;
-    setLoadingSlots(true);
-    fetch(`/api/availability?barberId=${target}&serviceId=${serviceId}&date=${date}`)
-      .then((r) => r.json())
-      .then((data) => setSlots(data.slots || []))
-      .catch(() => toast.error("Failed to load slots"))
-      .finally(() => setLoadingSlots(false));
-  }, [step, date, barberId, serviceId, branchFilteredBarbers]);
-
   const handleSubmit = async () => {
-    if (!canNext()) return;
+    if (!canNext()) {
+      toast.error("Please complete every step");
+      return;
+    }
     setSubmitting(true);
     try {
-      const target = barberId === "any" ? branchFilteredBarbers[0]?.id : barberId;
-      const res = await fetch("/api/bookings", {
+      const target =
+        barberId === "any"
+          ? branchFilteredBarbers[0]
+          : branchFilteredBarbers.find((b) => b.id === barberId);
+      if (!target || !selectedService || !selectedBranch) {
+        throw new Error("Missing booking context");
+      }
+
+      const startMin = timeToMinutes(slot);
+      const endTime = minutesToTime(startMin + selectedService.duration_minutes);
+
+      const BOOKINGS_KEY = "kemekem.appointments";
+      const CUSTOMERS_KEY = "kemekem.customers";
+
+      // Customer upsert
+      const customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || "[]");
+      let customer = customers.find((c: any) => c.phone === phone);
+      if (!customer) {
+        customer = {
+          id: `cust-${Date.now().toString(36)}`,
+          name,
+          phone,
+          notes: "",
+          visit_count: 0,
+          last_visit_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        customers.push(customer);
+        localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
+      }
+
+      // Append appointment
+      const all = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || "[]");
+      const num = `KEM-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.floor(1000+Math.random()*9000)}`;
+      const appt = {
+        id: `appt-${Date.now().toString(36)}`,
+        shop_id: null,
+        appointment_number: num,
+        customer_id: customer.id,
+        customer_name: name,
+        customer_phone: phone,
+        notes: notes || null,
+        branch_id: branchId,
+        service_id: serviceId,
+        barber_id: target.id,
+        appointment_date: date,
+        start_time: slot,
+        end_time: endTime,
+        status: "confirmed",
+        cancel_token: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      all.push(appt);
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(all));
+      window.dispatchEvent(new CustomEvent("kemekem:update"));
+
+      // Fire-and-forget notification (no-op if Telegram not configured)
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const manageLink = `${origin}/manage/${appt.cancel_token}`;
+      fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          branch_id: branchId,
-          service_id: serviceId,
-          barber_id: target,
-          date,
-          start_time: slot,
+          type: "booking_created",
           customer_name: name,
           customer_phone: phone,
-          notes,
+          service_name: selectedService.name,
+          barber_name: target.name,
+          branch_name: selectedBranch.name,
+          date,
+          time: slot,
+          appointment_number: num,
+          manage_link: manageLink,
         }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Booking failed");
-      }
-      const data = await res.json();
-      router.push(`/book/success?id=${data.id}`);
+      }).catch(() => {});
+
+      toast.success(`Booked! Confirmation #${num}`);
+      router.push(`/book/success?id=${appt.id}`);
     } catch (e: any) {
       toast.error(e.message || "Booking failed");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (!branches.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card/30 p-12 text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="mt-3 text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -139,11 +256,11 @@ export function BookingFlow() {
               >
                 {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
               </div>
-              <div className="hidden sm:block">
+              <div className="hidden sm:block min-w-0">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Step {s.id}
                 </div>
-                <div className={cn("text-sm font-medium", !isActive && !isDone && "text-muted-foreground")}>
+                <div className={cn("text-sm font-medium truncate", !isActive && !isDone && "text-muted-foreground")}>
                   {s.title}
                 </div>
               </div>
@@ -187,9 +304,9 @@ export function BookingFlow() {
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-foreground/10 text-foreground">
                         <MapPin className="h-5 w-5" />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="font-display text-lg font-semibold">{b.name}</div>
-                        <div className="mt-0.5 text-sm text-muted-foreground">{b.address}</div>
+                        <div className="mt-0.5 text-sm text-muted-foreground line-clamp-2">{b.address}</div>
                       </div>
                       {branchId === b.id && <Check className="h-5 w-5 text-foreground" />}
                     </button>
@@ -262,7 +379,7 @@ export function BookingFlow() {
                           : "border-border hover:border-foreground/40"
                       )}
                     >
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background font-display text-xl font-semibold">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background font-display text-lg font-semibold">
                         {b.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -300,12 +417,12 @@ export function BookingFlow() {
                             Pick a date first
                           </div>
                         )}
-                        {date && loadingSlots && (
-                          <div className="col-span-full flex items-center justify-center py-8">
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        {date && slots.length === 0 && (
+                          <div className="col-span-full py-8 text-center text-sm text-muted-foreground">
+                            No availability
                           </div>
                         )}
-                        {date && !loadingSlots && slots.map((s) => (
+                        {date && slots.map((s) => (
                           <button
                             key={s.time}
                             disabled={!s.available}
@@ -322,11 +439,6 @@ export function BookingFlow() {
                             {s.time}
                           </button>
                         ))}
-                        {date && !loadingSlots && slots.length === 0 && (
-                          <div className="col-span-full py-8 text-center text-sm text-muted-foreground">
-                            No availability
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -334,7 +446,7 @@ export function BookingFlow() {
                   <div className="space-y-4">
                     <div>
                       <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Full name
+                        Full name *
                       </label>
                       <input
                         value={name}
@@ -345,12 +457,12 @@ export function BookingFlow() {
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Phone
+                        Phone *
                       </label>
                       <input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+251 92..."
+                        placeholder="+251 92 ..."
                         className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
                       />
                     </div>
@@ -372,7 +484,9 @@ export function BookingFlow() {
                       <ul className="mt-2 space-y-1 text-muted-foreground">
                         <li><span className="text-foreground">{selectedBranch?.name}</span></li>
                         <li>{selectedService?.name} · {selectedService && formatCurrency(selectedService.price)}</li>
-                        <li>{selectedBarber ? (selectedBarber.id === "any" ? "Any barber" : selectedBarber.name) : "—"}</li>
+                        <li>
+                          {selectedBarber ? (selectedBarber.id === "any" ? "Any barber" : selectedBarber.name) : "—"}
+                        </li>
                         <li>{date || "—"}{slot ? ` · ${slot}` : ""}</li>
                       </ul>
                     </div>
@@ -410,7 +524,7 @@ export function BookingFlow() {
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Confirming...
+                  Confirming…
                 </>
               ) : (
                 <>

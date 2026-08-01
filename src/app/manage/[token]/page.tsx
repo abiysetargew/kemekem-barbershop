@@ -83,6 +83,20 @@ export default function ManageBookingPage({
     if (!confirm("Cancel this booking?")) return;
     await cancelAppointment(appt.id);
     setAppointments([...appointments]);
+    // Notify
+    fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "booking_cancelled",
+        customer_name: appt.customer_name,
+        customer_phone: appt.customer_phone,
+        service_name: svc?.name,
+        date: appt.appointment_date,
+        time: appt.start_time,
+        appointment_number: appt.appointment_number,
+      }),
+    }).catch(() => {});
   };
 
   const onReschedule = async () => {

@@ -1,10 +1,15 @@
 "use client";
-// Local data store for the admin panel + booking system.
-// All admin edits and bookings live in browser localStorage (per browser/device).
-// Public site reads seed data; admin and customer-facing flows read/write to this store.
+// Unified data store for the whole app.
 //
-// To upgrade to true multi-device/multi-user sync, swap the localStorage calls
-// with Supabase calls in the functions below — same API surface.
+// Storage model:
+// - Sticky base data (services, barbers, branches, settings, socials, gallery)
+//   is held in localStorage and seeded with `seed-data.ts` on first load.
+//   Admin edits persist in this layer and re-render the public site live.
+// - Bookings + customers are stored separately, with demo bookings seeded
+//   so the admin/staff screens are never empty.
+//
+// To enable multi-device sync in production, swap the localStorage calls
+// with Supabase calls — same hooks + API surface stays the same.
 
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -15,6 +20,8 @@ import {
   SEED_SOCIALS,
   SEED_GALLERY,
   SEED_SETTINGS,
+  SAMPLE_BOOKINGS,
+  SAMPLE_CUSTOMERS,
 } from "./seed-data";
 import type {
   Branch,
@@ -25,9 +32,10 @@ import type {
   SocialLink,
   GalleryItem,
   Appointment,
+  Customer,
 } from "@/types/database";
 
-const KEYS = {
+const STORAGE = {
   services: "kemekem.services",
   barbers: "kemekem.barbers",
   branches: "kemekem.branches",
@@ -38,6 +46,8 @@ const KEYS = {
   appointments: "kemekem.appointments",
   customers: "kemekem.customers",
 } as const;
+
+const SEED_FLAG = "kemekem.seeded.v2";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -58,115 +68,147 @@ function save(key: string, value: unknown) {
   if (!isBrowser()) return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // ignore quota errors
-  }
+  } catch {}
 }
 
-// Hydrate seed data into localStorage on first visit
-function ensureSeeded() {
+export function ensureSeeded() {
   if (!isBrowser()) return;
-  if (!localStorage.getItem("kemekem.seeded")) {
-    save(KEYS.services, SEED_SERVICES);
-    save(KEYS.barbers, SEED_BARBERS);
-    save(KEYS.branches, SEED_BRANCHES);
-    save(KEYS.reviews, SEED_REVIEWS);
-    save(KEYS.socials, SEED_SOCIALS);
-    save(KEYS.gallery, SEED_GALLERY);
-    save(KEYS.settings, SEED_SETTINGS);
-    localStorage.setItem("kemekem.seeded", "1");
+  if (localStorage.getItem(SEED_FLAG)) return;
+  save(STORAGE.services, SEED_SERVICES);
+  save(STORAGE.barbers, SEED_BARBERS);
+  save(STORAGE.branches, SEED_BRANCHES);
+  save(STORAGE.reviews, SEED_REVIEWS);
+  save(STORAGE.socials, SEED_SOCIALS);
+  save(STORAGE.gallery, SEED_GALLERY);
+  save(STORAGE.settings, SEED_SETTINGS);
+  // Seed bookings + customers so admin/staff screens are populated.
+  // Customers & appointments are deduplicated on save.
+  const existing = load<any[]>(STORAGE.appointments, []);
+  if (existing.length === 0) {
+    save(STORAGE.appointments, SAMPLE_BOOKINGS);
   }
+  const existingCustomers = load<any[]>(STORAGE.customers, []);
+  if (existingCustomers.length === 0) {
+    save(STORAGE.customers, SAMPLE_CUSTOMERS);
+  }
+  localStorage.setItem(SEED_FLAG, "1");
 }
 
-// ============= GENERIC HOOK =============
+export function resetSeedData() {
+  if (!isBrowser()) return;
+  Object.values(STORAGE).forEach((k) => localStorage.removeItem(k));
+  localStorage.removeItem(SEED_FLAG);
+  ensureSeeded();
+}
+
 function useStoredCollection<T extends { id: string }>(
   key: string,
   fallback: T[]
 ) {
   const [data, setData] = useState<T[]>(fallback);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     ensureSeeded();
     setData(load<T[]>(key, fallback));
+    setHydrated(true);
     const onStorage = () => setData(load<T[]>(key, fallback));
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // Lightweight custom event for same-tab updates
+  useEffect(() => {
+    const onUpdate = () => setData(load<T[]>(key, fallback));
+    window.addEventListener("kemekem:update", onUpdate);
+    return () => window.removeEventListener("kemekem:update", onUpdate);
+  }, [key, fallback]);
 
   const update = useCallback(
     (next: T[] | ((prev: T[]) => T[])) => {
       const value = typeof next === "function" ? (next as (p: T[]) => T[])(data) : next;
       setData(value);
       save(key, value);
+      // Notify sibling components
+      window.dispatchEvent(new CustomEvent("kemekem:update"));
     },
     [key, data]
   );
 
-  return [data, update] as const;
+  return [data, update, hydrated] as const;
 }
 
 function useStoredValue<T>(key: string, fallback: T) {
   const [data, setData] = useState<T>(fallback);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     ensureSeeded();
     setData(load<T>(key, fallback));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setHydrated(true);
+    const onStorage = () => setData(load<T>(key, fallback));
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [key]);
+
+  useEffect(() => {
+    const onUpdate = () => setData(load<T>(key, fallback));
+    window.addEventListener("kemekem:update", onUpdate);
+    return () => window.removeEventListener("kemekem:update", onUpdate);
+  }, [key, fallback]);
 
   const update = useCallback(
     (next: T) => {
       setData(next);
       save(key, next);
+      window.dispatchEvent(new CustomEvent("kemekem:update"));
     },
     [key]
   );
 
-  return [data, update] as const;
+  return [data, update, hydrated] as const;
 }
 
 // ============= PUBLIC HOOKS =============
 export function useServices() {
-  return useStoredCollection<Service>(KEYS.services, SEED_SERVICES);
+  return useStoredCollection<Service>(STORAGE.services, SEED_SERVICES);
 }
 
 export function useBarbers() {
-  return useStoredCollection<Barber>(KEYS.barbers, SEED_BARBERS);
+  return useStoredCollection<Barber>(STORAGE.barbers, SEED_BARBERS);
 }
 
 export function useBranches() {
-  return useStoredCollection<Branch>(KEYS.branches, SEED_BRANCHES);
+  return useStoredCollection<Branch>(STORAGE.branches, SEED_BRANCHES);
 }
 
 export function useSocials() {
-  return useStoredCollection<SocialLink>(KEYS.socials, SEED_SOCIALS);
+  return useStoredCollection<SocialLink>(STORAGE.socials, SEED_SOCIALS);
 }
 
 export function useGallery() {
-  return useStoredCollection<GalleryItem>(KEYS.gallery, SEED_GALLERY);
+  return useStoredCollection<GalleryItem>(STORAGE.gallery, SEED_GALLERY);
 }
 
 export function useReviews() {
-  return useStoredCollection<Review>(KEYS.reviews, SEED_REVIEWS);
+  return useStoredCollection<Review>(STORAGE.reviews, SEED_REVIEWS);
 }
 
 export function useBusinessSettings() {
-  return useStoredValue<BusinessSettings>(KEYS.settings, SEED_SETTINGS);
+  return useStoredValue<BusinessSettings>(STORAGE.settings, SEED_SETTINGS);
 }
 
 export function useAppointments() {
-  return useStoredCollection<Appointment>(KEYS.appointments, []);
+  return useStoredCollection<Appointment>(STORAGE.appointments, SAMPLE_BOOKINGS);
 }
 
 export function useCustomers() {
-  return useStoredCollection<{ id: string; name: string; phone: string; email?: string; notes?: string; visit_count: number; last_visit_at: string | null; created_at: string; updated_at: string }>(
-    KEYS.customs as any || "kemekem.customers",
-    []
-  );
+  return useStoredCollection<Customer>(STORAGE.customers, SAMPLE_CUSTOMERS);
 }
 
 // ============= HELPERS =============
-export function nextId() {
-  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+export function nextId(prefix = "id") {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
+
+export const STORAGE_KEYS = STORAGE;

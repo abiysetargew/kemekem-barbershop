@@ -1,15 +1,21 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { useBusinessSettings, useBranches, useSocials } from "@/lib/store";
 import { getSocialIcon, getSocialLabel } from "@/lib/social";
 import { ShareButton } from "@/components/layout/share-button";
 
+const HIDE_ON = ["/admin", "/staff", "/manage"];
+
 export function Footer() {
+  const pathname = usePathname();
   const [settings] = useBusinessSettings();
   const [branches] = useBranches();
   const [socials] = useSocials();
+
+  if (HIDE_ON.some((p) => pathname?.startsWith(p))) return null;
 
   return (
     <footer className="border-t border-border bg-muted/30">
@@ -70,8 +76,6 @@ export function Footer() {
               <li><Link href="/about" className="hover:text-foreground">About</Link></li>
               <li><Link href="/contact" className="hover:text-foreground">Contact</Link></li>
               <li><Link href="/manage" className="hover:text-foreground">Manage Booking</Link></li>
-              <li><Link href="/admin/login" className="hover:text-foreground">Admin</Link></li>
-              <li><Link href="/staff" className="hover:text-foreground">Staff</Link></li>
             </ul>
           </div>
 

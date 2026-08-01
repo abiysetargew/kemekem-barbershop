@@ -1,10 +1,14 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, Phone, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const HIDE_ON = ["/admin", "/staff", "/manage"];
+
 export function FloatingActions() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -13,6 +17,8 @@ export function FloatingActions() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  if (HIDE_ON.some((p) => pathname?.startsWith(p))) return null;
 
   return (
     <div
@@ -42,9 +48,9 @@ export function FloatingActions() {
       <Link
         href="/book"
         aria-label="Book Appointment"
-        className="group flex h-14 w-14 items-center justify-center rounded-full bg-gold-gradient shadow-lg transition-all hover:shadow-xl active:scale-95"
+        className="group flex h-14 w-14 items-center justify-center rounded-full bg-foreground shadow-lg transition-all hover:shadow-xl active:scale-95"
       >
-        <CalendarDays className="h-6 w-6 text-white" />
+        <CalendarDays className="h-6 w-6 text-background" />
       </Link>
     </div>
   );

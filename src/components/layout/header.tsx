@@ -14,10 +14,15 @@ const NAV = [
   { href: "/contact", label: "Contact" },
 ];
 
+const HIDE_ON = ["/admin", "/staff", "/manage"];
+
 export function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+
+  // Hide the public chrome on admin / staff / manage routes
+  const isHidden = HIDE_ON.some((p) => pathname?.startsWith(p));
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
@@ -33,6 +38,8 @@ export function Header() {
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
   }, [open]);
+
+  if (isHidden) return null;
 
   const isHome = pathname === "/";
 
@@ -67,7 +74,6 @@ export function Header() {
           </div>
         </Link>
 
-        {/* Desktop nav */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV.map((item) => {
             const active = pathname === item.href;
@@ -131,7 +137,6 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       <AnimatePresence>
         {open && (
           <motion.div
