@@ -211,12 +211,61 @@ export function ServicesView() {
                 />
               </Field>
             </div>
-            <Field label="Image URL">
-              <Input
-                value={form.image_url || ""}
-                onChange={(v) => setField("image_url", v)}
-                placeholder="https://..."
-              />
+            <Field label="Image">
+              <div className="space-y-2">
+                {form.image_url ? (
+                  <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.image_url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setField("image_url", "")}
+                      className="absolute right-2 top-2 rounded-full bg-background/95 p-1.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex h-24 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30 text-xs text-muted-foreground">
+                    No image selected
+                  </div>
+                )}
+                <input
+                  type="url"
+                  value={form.image_url || ""}
+                  onChange={(e) => setField("image_url", e.target.value)}
+                  placeholder="Paste image URL here"
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-xs font-mono"
+                />
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    Or pick from library
+                  </summary>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {[
+                      "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1593702288056-fb7fbbd1ec74?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1560869713-7d0a29430803?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1605497777774-9b2f55bda7be?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1559599076-9c61d8e1b77c?auto=format&fit=crop&w=900&q=80",
+                    ].map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setField("image_url", url)}
+                        className="aspect-square overflow-hidden rounded-lg border border-border hover:ring-2 hover:ring-foreground"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              </div>
             </Field>
             <label className="flex items-center gap-2 text-sm">
               <input
