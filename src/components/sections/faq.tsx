@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const FAQS = [
@@ -10,23 +11,23 @@ const FAQS = [
   },
   {
     q: "Can I choose my barber?",
-    a: "Yes — during booking you can pick your favorite barber. If you're flexible, choose 'Any barber' and we'll match you with the next available professional.",
+    a: "Yes — during booking you can pick your favorite barber. If you're flexible, choose 'Any barber' and we'll match you with the next available.",
   },
   {
     q: "How do I cancel or reschedule?",
-    a: "Open your booking confirmation link or go to the Manage Booking page. You can cancel or reschedule up to 2 hours before your appointment.",
+    a: "Use the link in your confirmation or go to Manage Booking. You can cancel or reschedule up to 2 hours before your appointment.",
   },
   {
-    q: "Do you offer kids haircuts?",
-    a: "Yes, our Kids Haircut service is gentle, quick, and tailored to children of all ages.",
-  },
-  {
-    q: "Which payment methods do you accept?",
-    a: "Cash, mobile payments (Telebirr, CBE Birr), and all major cards. Online payment options are coming soon.",
+    q: "What payment methods do you accept?",
+    a: "Cash, mobile payments (Telebirr, CBE Birr), and major cards. Online payment coming soon.",
   },
   {
     q: "Where are you located?",
     a: "Piassa Branch — Piassa Shopping Mall, 6th Floor. Bole Branch — Sapphire Addis Hotel, 11th Floor.",
+  },
+  {
+    q: "Do you offer kids haircuts?",
+    a: "Yes — children's cuts are gentle, quick, and tailored to all ages.",
   },
 ];
 
@@ -37,25 +38,31 @@ export function FAQ() {
     <section className="section-padding">
       <div className="container-tight">
         <div className="grid items-start gap-12 md:grid-cols-[1fr_1.5fr]">
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-600">
-              FAQ
-            </p>
-            <h2 className="heading-2 text-balance">Questions, answered</h2>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+          >
+            <p className="eyebrow text-muted-foreground">FAQ</p>
+            <h2 className="heading-2 mt-3">Questions, answered</h2>
             <p className="mt-4 text-muted-foreground">
               Everything you need to know before booking.
             </p>
-          </div>
+          </motion.div>
 
           <div className="space-y-2">
             {FAQS.map((item, i) => {
               const isOpen = open === i;
               return (
-                <div
+                <motion.div
                   key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.03 }}
                   className={cn(
-                    "overflow-hidden rounded-2xl border border-border/60 transition-colors",
-                    isOpen ? "bg-muted/40" : "bg-card"
+                    "overflow-hidden rounded-2xl border border-border transition-colors",
+                    isOpen ? "bg-muted/30" : "bg-card"
                   )}
                 >
                   <button
@@ -63,7 +70,7 @@ export function FAQ() {
                     className="flex w-full items-center justify-between gap-4 p-5 text-left"
                     aria-expanded={isOpen}
                   >
-                    <span className="font-medium">{item.q}</span>
+                    <span className="font-display text-lg">{item.q}</span>
                     <ChevronDown
                       className={cn(
                         "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
@@ -83,7 +90,7 @@ export function FAQ() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
