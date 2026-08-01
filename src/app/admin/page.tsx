@@ -1,6 +1,6 @@
 "use client";
-import { DashboardView } from "@/components/admin/dashboard-view";
+import { AdminShell } from "@/components/admin/admin-shell";
 
-export default function AdminDashboardRoute() {
-  return <DashboardView />;
+export default function AdminPage() {
+  return <AdminShell initialTab="dashboard" />;
 }

@@ -8,21 +8,27 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const isAdmin =
+    // Don't guard the login page itself.
+    if (pathname === "/admin/login") {
+      setReady(true);
+      return;
+    }
+    // Check auth from sessionStorage
+    const isAuth =
       typeof window !== "undefined" &&
       sessionStorage.getItem("kemekem_admin") === "true";
-    if (!isAdmin) {
+    if (!isAuth) {
       const next = encodeURIComponent(pathname || "/admin");
       router.replace(`/admin/login?next=${next}`);
-    } else {
-      setReady(true);
+      return;
     }
+    setReady(true);
   }, [router, pathname]);
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
       </div>
     );
   }
