@@ -123,8 +123,48 @@ export function GalleryView() {
       {creating && (
         <Modal title="Add image" onClose={() => setCreating(false)}>
           <div className="space-y-4">
-            <F label="Image URL *">
-              <I v={form.image_url} onChange={(v) => setForm({ ...form, image_url: v })} placeholder="https://..." />
+            <F label="Image *">
+              <div className="space-y-2">
+                {form.image_url && (
+                  <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.image_url} alt="" className="h-full w-full object-cover" />
+                  </div>
+                )}
+                <I
+                  v={form.image_url}
+                  onChange={(v) => setForm({ ...form, image_url: v })}
+                  placeholder="Paste image URL here"
+                />
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    Or pick from library ({form.category})
+                  </summary>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {[
+                      "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1593702288056-fb7fbbd1ec74?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1605497777774-9b2f55bda7be?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1559599076-9c61d8e1b77c?auto=format&fit=crop&w=900&q=80",
+                      "https://images.unsplash.com/photo-1560869713-7d0a29430803?auto=format&fit=crop&w=900&q=80",
+                    ].map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => setForm({ ...form, image_url: url })}
+                        className="aspect-square overflow-hidden rounded-lg border border-border hover:ring-2 hover:ring-foreground"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              </div>
             </F>
             <F label="Category">
               <select
