@@ -1,18 +1,6 @@
 "use client";
-import dynamic from "next/dynamic";
+import { BookingFlow } from "@/components/booking/booking-flow";
 import { BookingErrorBoundary } from "@/components/booking/booking-error-boundary";
-
-const BookingFlow = dynamic(
-  () => import("@/components/booking/booking-flow").then((m) => m.BookingFlow),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-      </div>
-    ),
-  }
-);
 
 export default function BookPage() {
   return (
