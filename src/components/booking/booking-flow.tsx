@@ -18,6 +18,7 @@ import {
   useBranches,
   useServices,
   useBarbers,
+  useAppointments,
 } from "@/lib/store";
 import { cn, formatCurrency, timeToMinutes, minutesToTime } from "@/lib/utils";
 import { toast } from "sonner";
