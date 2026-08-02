@@ -113,8 +113,6 @@ export function ensureSeeded() {
 }
 
 export function resetSeedData() {
-
-export function resetSeedData() {
   if (!isBrowser()) return;
   Object.values(STORAGE).forEach((k) => localStorage.removeItem(k));
   localStorage.removeItem(SEED_FLAG);
