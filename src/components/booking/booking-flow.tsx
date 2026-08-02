@@ -219,7 +219,9 @@ export function BookingFlow() {
           appointment_number: num,
           manage_link: manageLink,
         }),
-      }).catch(() => {});
+      })
+        .then((r) => console.log("[NOTIFY]", r.status, num))
+        .catch((e) => console.error("[NOTIFY FAIL]", e));
 
       toast.success(`Booked! Confirmation #${num}`);
       router.push(`/book/success?id=${appt.id}`);
