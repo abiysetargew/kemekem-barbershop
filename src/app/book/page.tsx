@@ -1,5 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
+import { BookingErrorBoundary } from "@/components/booking/booking-error-boundary";
 
 const BookingFlow = dynamic(
   () => import("@/components/booking/booking-flow").then((m) => m.BookingFlow),
@@ -23,7 +24,9 @@ export default function BookPage() {
             Four quick steps. Takes less than a minute.
           </p>
         </div>
-        <BookingFlow />
+        <BookingErrorBoundary>
+          <BookingFlow />
+        </BookingErrorBoundary>
       </div>
     </section>
   );
