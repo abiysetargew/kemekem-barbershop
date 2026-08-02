@@ -111,12 +111,8 @@ export function ensureSeeded() {
   localStorage.setItem(SEED_FLAG, "1");
   emit();
 }
-  const existingCustomers = load<any[]>(STORAGE.customers, []);
-  if (existingCustomers.length === 0) {
-    save(STORAGE.customers, SAMPLE_CUSTOMERS);
-  }
-  localStorage.setItem(SEED_FLAG, "1");
-}
+
+export function resetSeedData() {
 
 export function resetSeedData() {
   if (!isBrowser()) return;
