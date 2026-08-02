@@ -92,10 +92,11 @@ export async function POST(req: Request) {
   try {
     const payload: NotifyPayload = await req.json();
     const text = fmt(payload);
-    // Fire-and-forget; never fail the caller.
-    void send(text);
+    // Await so Vercel doesn't kill the function before send completes
+    await send(text);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    console.error("[NOTIFY POST ERROR]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
