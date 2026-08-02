@@ -22,6 +22,7 @@ import {
   type AppointmentStatus,
 } from "@/lib/booking";
 import { cn, formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function ManageBookingPage({
   params,
@@ -83,7 +84,6 @@ export default function ManageBookingPage({
     if (!confirm("Cancel this booking?")) return;
     await cancelAppointment(appt.id);
     setAppointments([...appointments]);
-    // Notify
     fetch("/api/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,6 +97,7 @@ export default function ManageBookingPage({
         appointment_number: appt.appointment_number,
       }),
     }).catch(() => {});
+    toast.success("Booking cancelled");
   };
 
   const onReschedule = async () => {
@@ -106,6 +107,21 @@ export default function ManageBookingPage({
     setRescheduling(false);
     setDate("");
     setSlot("");
+    fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "booking_rescheduled",
+        customer_name: appt.customer_name,
+        customer_phone: appt.customer_phone,
+        service_name: svc?.name,
+        barber_name: barber?.name,
+        date,
+        time: slot,
+        appointment_number: appt.appointment_number,
+      }),
+    }).catch(() => {});
+    toast.success("Booking rescheduled");
   };
 
   return (
