@@ -84,9 +84,10 @@ export default async function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
+        suppressHydrationWarning
       >
         <Providers>
-          <div className="flex min-h-screen flex-col bg-background">
+          <div className="flex min-h-screen flex-col bg-background" suppressHydrationWarning>
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />
