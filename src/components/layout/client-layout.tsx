@@ -6,26 +6,40 @@ import { FloatingActions } from "@/components/layout/floating-actions";
 import { useEffect, useState, type ReactNode } from "react";
 
 export function ClientLayout({ children }: { children: ReactNode }) {
-  // Wait until mounted on client to render anything that depends on
-  // browser-only state (theme, pathname, etc.). The static markup stays
-  // identical to server output because we render the same components.
+  // Server renders a static loader. Client renders the real UI.
+  // This guarantees zero hydration mismatches — server output never
+  // tries to render components that depend on browser state.
+  return (
+    <Providers>
+      <div className="flex min-h-screen flex-col bg-background">
+        <ClientChrome>{children}</ClientChrome>
+      </div>
+    </Providers>
+  );
+}
+
+function ClientChrome({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  if (!mounted) {
+    return (
+      <>
+        <div className="h-16 border-b border-border bg-background/85 backdrop-blur-xl" />
+        <main className="flex-1">{children}</main>
+        <div className="h-32" />
+      </>
+    );
+  }
+
   return (
-    <Providers>
-      <div
-        className="flex min-h-screen flex-col bg-background"
-        suppressHydrationWarning
-      >
-        {mounted && <Header />}
-        {!mounted ? <div style={{ minHeight: "60vh" }} /> : <main className="flex-1">{children}</main>}
-        {mounted && <Footer />}
-        {mounted && <FloatingActions />}
-        {!mounted && <div className="flex-1">{children}</div>}
-      </div>
-    </Providers>
+    <>
+      <Header />
+      <main className="flex-1">{children}</main>
+      <Footer />
+      <FloatingActions />
+    </>
   );
 }
