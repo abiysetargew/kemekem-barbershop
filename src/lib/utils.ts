@@ -38,3 +38,26 @@ export function minutesToTime(min: number) {
 export function isValidPhone(phone: string) {
   return /^[\d\s+\-()]{9,}$/.test(phone);
 }
+
+/**
+ * Convert 24h HH:mm time to Ethiopian 12-hour clock with Amharic period name.
+ * Day starts at 6:00 AM. Periods:
+ *   6:00 - 11:59 → ጠዋት (morning)
+ *   12:00 - 16:59 → ከሰዓት (afternoon)
+ *   17:00 - 20:00 → ማታ (evening)
+ *
+ * Examples:
+ *   "08:00" → "2:00 ጠዋት"
+ *   "14:00" → "8:00 ከሰዓት"
+ *   "18:00" → "12:00 ማታ"
+ */
+export function formatTime12h(time: string): string {
+  if (!time) return "";
+  const [hStr, mStr] = time.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (Number.isNaN(h) || Number.isNaN(m)) return time;
+  const eth = h <= 6 ? h - 6 + 12 : h - 6;
+  const period = h < 12 ? "ጠዋት" : h < 17 ? "ከሰዓት" : "ማታ";
+  return `${eth}:${m.toString().padStart(2, "0")} ${period}`;
+}

@@ -20,7 +20,7 @@ import {
   useBarbers,
   useAppointments,
 } from "@/lib/store";
-import { cn, formatCurrency, timeToMinutes, minutesToTime } from "@/lib/utils";
+import { cn, formatCurrency, timeToMinutes, minutesToTime, formatTime12h } from "@/lib/utils";
 import { toast } from "sonner";
 import { ScissorsLoader } from "@/components/visual";
 
@@ -441,7 +441,7 @@ export function BookingFlow() {
                                 : "border-border bg-muted text-muted-foreground line-through cursor-not-allowed"
                             )}
                           >
-                            {s.time}
+                            {formatTime12h(s.time)}
                           </button>
                         ))}
                       </div>
@@ -511,7 +511,7 @@ export function BookingFlow() {
                         <li>
                           {selectedBarber ? (selectedBarber.id === "any" ? "Any barber" : selectedBarber.name) : "—"}
                         </li>
-                        <li>{date || "—"}{slot ? ` · ${slot}` : ""}</li>
+                        <li>{date || "—"}{slot ? ` · ${formatTime12h(slot)}` : ""}</li>
                       </ul>
                     </div>
                   </div>

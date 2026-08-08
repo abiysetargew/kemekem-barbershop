@@ -19,7 +19,7 @@ export function CTASection() {
             <div>
               <p className="eyebrow text-background/60">Ready when you are</p>
               <h2 className="heading-2 mt-3 text-background">
-                Look sharp. <span className="display-italic">Tonight.</span>
+                Look sharp. <span className="display-italic">Today.</span>
               </h2>
               <p className="mt-5 max-w-xl text-background/70">
                 Book your appointment in under 60 seconds. Choose your branch,
