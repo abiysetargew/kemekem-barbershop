@@ -41,15 +41,18 @@ export function isValidPhone(phone: string) {
 
 /**
  * Convert 24h HH:mm time to Ethiopian 12-hour clock with Amharic period name.
- * Day starts at 6:00 AM. Periods:
- *   6:00 - 11:59 → ጠዋት (morning)
- *   12:00 - 16:59 → ከሰዓት (afternoon)
- *   17:00 - 20:00 → ማታ (evening)
+ * Day starts at 6:00 AM (shown as "12:00"). Periods:
+ *   6:00 - 11:59 → ጠዋት (morning) — 12, 1, 2, 3, 4, 5
+ *   12:00 - 16:59 → ከሰዓት (afternoon) — 6, 7, 8, 9, 10
+ *   17:00 - 20:00 → ማታ (evening) — 11, 12, 1, 2
  *
  * Examples:
+ *   "06:00" → "12:00 ጠዋት"   (day starts)
  *   "08:00" → "2:00 ጠዋት"
+ *   "12:00" → "6:00 ከሰዓት"
  *   "14:00" → "8:00 ከሰዓት"
- *   "18:00" → "12:00 ማታ"
+ *   "18:00" → "12:00 ማታ"  (evening)
+ *   "20:00" → "2:00 ማታ"
  */
 export function formatTime12h(time: string): string {
   if (!time) return "";
@@ -57,7 +60,15 @@ export function formatTime12h(time: string): string {
   const h = Number(hStr);
   const m = Number(mStr);
   if (Number.isNaN(h) || Number.isNaN(m)) return time;
-  const eth = h <= 6 ? h - 6 + 12 : h - 6;
+  // Map 24h to 12-hour Ethiopian clock.
+  // 6:00 → 12, 7:00 → 1, 8:00 → 2, ..., 17:00 → 11, 18:00 → 12
+  // Formula: ((h - 6) mod 12) + 1, but cap to 1..12.
+  let eth: number;
+  if (h < 6) eth = 12; // before day start - rare, just show 12
+  else {
+    const diff = (h - 6) % 12;
+    eth = diff === 0 ? 12 : diff;
+  }
   const period = h < 12 ? "ጠዋት" : h < 17 ? "ከሰዓት" : "ማታ";
   return `${eth}:${m.toString().padStart(2, "0")} ${period}`;
 }
