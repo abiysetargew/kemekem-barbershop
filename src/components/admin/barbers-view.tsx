@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, Phone, Star } from "lucide-react";
-import { useBarbers, useBranches, type Barber } from "@/lib/store";
+import { useBarbers, useBranches } from "@/lib/store";
+import type { Barber } from "@/types/database";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,7 +24,7 @@ const EMPTY: any = {
 };
 
 export function BarbersView() {
-  const [barbers, setBarbers] = useBarbers();
+  const [barbers, setBarbers, , , removeBarber] = useBarbers();
   const [branches] = useBranches();
   const [editing, setEditing] = useState<Barber | null>(null);
   const [creating, setCreating] = useState(false);
@@ -37,25 +38,27 @@ export function BarbersView() {
   const close = () => { setEditing(null); setCreating(false); setForm(EMPTY); };
   const setField = (k: string, v: any) => setForm({ ...form, [k]: v });
 
-  const save = () => {
+  const save = async () => {
     if (!form.name) { toast.error("Name required"); return; }
     setSaving(true);
     try {
       if (editing) {
-        setBarbers(barbers.map((b) => b.id === editing.id ? { ...form, id: editing.id } : b));
+        await setBarbers(barbers.map((b) => b.id === editing.id ? { ...form, id: editing.id } : b));
         toast.success("Updated");
       } else {
         const id = `barb-${Date.now().toString(36)}`;
-        setBarbers([...barbers, { ...form, id }]);
+        await setBarbers([...barbers, { ...form, id }]);
         toast.success("Added");
       }
       close();
+    } catch (e: any) {
+      toast.error(e.message);
     } finally { setSaving(false); }
   };
 
   const remove = (id: string) => {
     if (!confirm("Delete this barber?")) return;
-    setBarbers(barbers.filter((b) => b.id !== id));
+    removeBarber(id);
     toast.success("Deleted");
   };
 

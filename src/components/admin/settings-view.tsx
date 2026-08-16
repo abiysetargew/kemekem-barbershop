@@ -1,36 +1,28 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { useBusinessSettings } from "@/lib/store";
+import { useBusinessSettings, useSocials } from "@/lib/store";
 import { toast } from "sonner";
 
 const PLATFORMS = ["instagram","facebook","tiktok","telegram","youtube","x","whatsapp","website"];
 
 export function SettingsView() {
   const [settings, setSettings] = useBusinessSettings();
+  const [socials, setSocials, , , removeSocial] = useSocials();
   const [saving, setSaving] = useState(false);
-  const [socials, setSocials] = useState<Array<{ id: string; platform: string; url: string }>>([]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("kemekem.socials");
-      if (raw) setSocials(JSON.parse(raw));
-    } catch {}
-  }, []);
-
-  const saveSocials = (next: typeof socials) => {
-    setSocials(next);
-    localStorage.setItem("kemekem.socials", JSON.stringify(next));
-  };
 
   const setField = (k: string, v: any) => setSettings({ ...settings, [k]: v });
 
-  const save = () => {
+  const save = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
+      await setSettings({ ...settings });
       setSaving(false);
       toast.success("Settings saved");
-    }, 400);
+    } catch (e: any) {
+      setSaving(false);
+      toast.error(e.message);
+    }
   };
 
   return (
@@ -92,19 +84,19 @@ export function SettingsView() {
             <div key={s.id} className="flex items-center gap-2 rounded-xl border border-border bg-background p-2">
               <select
                 value={s.platform}
-                onChange={(e) => saveSocials(socials.map((x) => x.id === s.id ? { ...x, platform: e.target.value } : x))}
+                onChange={(e) => setSocials(socials.map((x) => x.id === s.id ? { ...x, platform: e.target.value as any } : x))}
                 className="h-9 rounded-lg border border-input bg-background px-2 text-sm capitalize"
               >
                 {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
               <input
                 value={s.url}
-                onChange={(e) => saveSocials(socials.map((x) => x.id === s.id ? { ...x, url: e.target.value } : x))}
+                onChange={(e) => setSocials(socials.map((x) => x.id === s.id ? { ...x, url: e.target.value } : x))}
                 placeholder="https://..."
                 className="h-9 flex-1 rounded-lg border border-input bg-background px-3 text-sm"
               />
               <button
-                onClick={() => saveSocials(socials.filter((x) => x.id !== s.id))}
+                onClick={() => removeSocial(s.id)}
                 className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10"
               >
                 <Trash2 className="h-4 w-4" />
@@ -114,9 +106,9 @@ export function SettingsView() {
         </div>
         <button
           onClick={() =>
-            saveSocials([
+            setSocials([
               ...socials,
-              { id: `soc-${Date.now().toString(36)}`, platform: "instagram", url: "" },
+              { id: `soc-${Date.now().toString(36)}`, platform: "instagram", url: "" } as any,
             ])
           }
           className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm hover:bg-muted"

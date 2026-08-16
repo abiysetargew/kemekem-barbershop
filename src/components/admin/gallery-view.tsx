@@ -15,7 +15,7 @@ const CATEGORIES = [
 ];
 
 export function GalleryView() {
-  const [gallery, setGallery] = useGallery();
+  const [gallery, setGallery, , , removeGallery] = useGallery();
   const [creating, setCreating] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [form, setForm] = useState({ image_url: "", category: "haircuts", title: "" });
@@ -25,35 +25,37 @@ export function GalleryView() {
     ? gallery
     : gallery.filter((g) => g.category === activeCategory);
 
-  const save = () => {
+  const save = async () => {
     if (!form.image_url) { toast.error("URL required"); return; }
     setSaving(true);
     try {
       const id = `gal-${Date.now().toString(36)}`;
-      setGallery([
+      await setGallery([
         ...gallery,
-        { id, image_url: form.image_url, category: form.category, title: form.title || null, description: null, display_order: gallery.length + 1, created_at: new Date().toISOString() },
+        { id, shop_id: null, image_url: form.image_url, category: form.category, title: form.title || null, description: null, display_order: gallery.length + 1, created_at: new Date().toISOString() },
       ]);
       setCreating(false);
       setForm({ image_url: "", category: "haircuts", title: "" });
       toast.success("Image added");
+    } catch (e: any) {
+      toast.error(e.message);
     } finally { setSaving(false); }
   };
 
   const remove = (id: string) => {
     if (!confirm("Delete image?")) return;
-    setGallery(gallery.filter((g) => g.id !== id));
+    removeGallery(id);
     toast.success("Deleted");
   };
 
-  const move = (id: string, dir: -1 | 1) => {
+  const move = async (id: string, dir: -1 | 1) => {
     const sorted = [...gallery].sort((a, b) => a.display_order - b.display_order);
     const idx = sorted.findIndex((g) => g.id === id);
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= sorted.length) return;
     [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
     const reindexed = sorted.map((g, i) => ({ ...g, display_order: i + 1 }));
-    setGallery(reindexed);
+    await setGallery(reindexed);
   };
 
   return (

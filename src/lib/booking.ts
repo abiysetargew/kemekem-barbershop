@@ -1,28 +1,17 @@
 "use client";
-// Booking logic — localStorage-backed (no DB required).
-// All bookings persist per-browser. For real multi-user deployment, swap this
-// with a Supabase-backed equivalent.
+// Booking logic — Supabase-backed.
+// All bookings persist server-side and sync across devices in real time.
 
+import { createBrowserClient } from "@/lib/supabase/client";
 import { timeToMinutes, minutesToTime, generateAppointmentNumber } from "@/lib/utils";
-import type { BookingFormData, Appointment } from "@/types/database";
-import { SEED_BARBERS, SEED_SERVICES } from "./seed-data";
-
-const BOOKINGS_KEY = "kemekem.appointments";
-const CUSTOMERS_KEY = "kemekem.customers";
+import type { BookingFormData, Appointment, AppointmentStatus } from "@/types/database";
 
 export interface AvailableSlot {
   time: string;
   available: boolean;
 }
 
-export type AppointmentStatus =
-  | "pending"
-  | "confirmed"
-  | "checked_in"
-  | "in_service"
-  | "completed"
-  | "cancelled"
-  | "no_show";
+export type { AppointmentStatus };
 
 export type CancelReason =
   | "customer_no_show"
@@ -33,26 +22,8 @@ export type CancelReason =
 
 export type PaymentMethod = "cash" | "card" | "telebirr" | "transfer" | "other";
 
-function isBrowser() {
-  return typeof window !== "undefined";
-}
-
-function loadArr<T>(key: string): T[] {
-  if (!isBrowser()) return [];
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    return JSON.parse(raw) as T[];
-  } catch {
-    return [];
-  }
-}
-
-function saveArr<T>(key: string, value: T[]) {
-  if (!isBrowser()) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+function getSupabase() {
+  return createBrowserClient();
 }
 
 export async function getAvailableSlots(
@@ -60,17 +31,21 @@ export async function getAvailableSlots(
   serviceId: string,
   date: string
 ): Promise<AvailableSlot[]> {
-  const barbers = loadArr<any>("kemekem.barbers");
-  const services = loadArr<any>("kemekem.services");
-  const barber =
-    barbers.find((b) => b.id === barberId) ||
-    SEED_BARBERS.find((b) => b.id === barberId);
-  const service =
-    services.find((s) => s.id === serviceId) ||
-    SEED_SERVICES.find((s) => s.id === serviceId);
+  const supabase = getSupabase();
+  const [{ data: barber }, { data: service }, { data: appointments }] = await Promise.all([
+    supabase.from("barbers").select("*").eq("id", barberId).maybeSingle(),
+    supabase.from("services").select("*").eq("id", serviceId).maybeSingle(),
+    supabase
+      .from("appointments")
+      .select("*")
+      .eq("barber_id", barberId)
+      .eq("appointment_date", date)
+      .neq("status", "cancelled"),
+  ]);
+
   if (!barber || !service) return [];
 
-  const interval = 60; // 1-hour slots per client spec
+  const interval = 60;
   const duration = service.duration_minutes || 60;
   const wh = barber.working_hours || { open: "08:00", close: "20:00" };
   const openMin = timeToMinutes(wh.open);
@@ -82,129 +57,109 @@ export async function getAvailableSlots(
     return [];
   }
 
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const existing = all.filter(
-    (a) => a.barber_id === barberId && a.appointment_date === date && a.status !== "cancelled"
-  );
-
   const slots: AvailableSlot[] = [];
   for (let m = openMin; m + duration <= closeMin; m += interval) {
-    const start = m;
-    const end = m + duration;
-    const startStr = minutesToTime(start);
-    const endStr = minutesToTime(end);
-
+    const startStr = minutesToTime(m);
+    const endStr = minutesToTime(m + duration);
     const now = new Date();
     const slotDate = new Date(date + "T00:00:00");
     const isToday = slotDate.toDateString() === now.toDateString();
     if (isToday) {
       const nowMin = now.getHours() * 60 + now.getMinutes();
-      if (start <= nowMin) continue;
+      if (m <= nowMin) continue;
     }
-
-    const conflict = existing.some((a) => {
+    const conflict = (appointments ?? []).some((a: any) => {
       const aStart = timeToMinutes((a.start_time as string).slice(0, 5));
       const aEnd = timeToMinutes((a.end_time as string).slice(0, 5));
-      return start < aEnd && end > aStart;
+      return m < aEnd && m + duration > aStart;
     });
-
     slots.push({ time: startStr, available: !conflict });
   }
   return slots;
 }
 
 export async function createBooking(data: BookingFormData): Promise<Appointment> {
-  if (!isBrowser()) throw new Error("Booking requires a browser");
+  const supabase = getSupabase();
 
-  const services = loadArr<any>("kemekem.services");
-  const service =
-    services.find((s) => s.id === data.service_id) ||
-    SEED_SERVICES.find((s) => s.id === data.service_id);
+  const { data: service } = await supabase
+    .from("services")
+    .select("*")
+    .eq("id", data.service_id)
+    .maybeSingle();
   const duration = service?.duration_minutes || 60;
   const startMin = timeToMinutes(data.start_time);
   const endTime = minutesToTime(startMin + duration);
 
-  const customers = loadArr<any>(CUSTOMERS_KEY);
-  let customer = customers.find((c) => c.phone === data.customer_phone);
+  let { data: customer } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("phone", data.customer_phone)
+    .maybeSingle();
   if (!customer) {
-    customer = {
-      id: `cust-${Date.now().toString(36)}`,
-      name: data.customer_name,
-      phone: data.customer_phone,
-      notes: "",
-      visit_count: 0,
-      last_visit_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    customers.push(customer);
-    saveArr(CUSTOMERS_KEY, customers);
+    const { data: created, error: cErr } = await supabase
+      .from("customers")
+      .insert({
+        name: data.customer_name,
+        phone: data.customer_phone,
+        notes: data.notes || "",
+        visit_count: 0,
+        last_visit_at: null,
+      })
+      .select()
+      .single();
+    if (cErr) throw new Error(cErr.message);
+    customer = created;
   }
 
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const conflict = all.find(
-    (a) =>
-      a.barber_id === data.barber_id &&
-      a.appointment_date === data.date &&
-      a.status !== "cancelled" &&
-      (a.start_time as string).slice(0, 5) <= data.start_time &&
-      (a.end_time as string).slice(0, 5) > data.start_time
-  );
+  const { data: conflict } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("barber_id", data.barber_id)
+    .eq("appointment_date", data.date)
+    .neq("status", "cancelled")
+    .lte("start_time", data.start_time)
+    .gt("end_time", data.start_time)
+    .maybeSingle();
   if (conflict) throw new Error("This slot was just booked. Please pick another time.");
 
-  const appt: Appointment = {
-    id: `appt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    shop_id: null,
-    appointment_number: generateAppointmentNumber(),
-    customer_id: customer.id,
-    customer_name: data.customer_name,
-    customer_phone: data.customer_phone,
-    notes: data.notes || null,
-    branch_id: data.branch_id,
-    service_id: data.service_id,
-    barber_id: data.barber_id,
-    appointment_date: data.date,
-    start_time: data.start_time,
-    end_time: endTime,
-    status: "confirmed",
-    cancel_token:
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `tok-${Date.now()}`,
-    payment_status: "unpaid",
-    payment_method: null,
-    paid_at: null,
-    paid_amount: null,
-    cancel_reason: null,
-    referred_by: data.referred_by || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  all.push(appt);
-  saveArr(BOOKINGS_KEY, all);
-  return appt;
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .insert({
+      appointment_number: generateAppointmentNumber(),
+      customer_id: customer.id,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
+      notes: data.notes || null,
+      branch_id: data.branch_id,
+      service_id: data.service_id,
+      barber_id: data.barber_id,
+      appointment_date: data.date,
+      start_time: data.start_time,
+      end_time: endTime,
+      status: "confirmed",
+      payment_status: "unpaid",
+      payment_method: null,
+      paid_at: null,
+      paid_amount: null,
+      cancel_reason: null,
+      referred_by: data.referred_by || null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return appt as Appointment;
 }
 
 export async function updateAppointmentStatus(
   id: string,
   status: AppointmentStatus
 ): Promise<void> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const idx = all.findIndex((a) => a.id === id);
-  if (idx === -1) return;
-  all[idx].status = status;
-  all[idx].updated_at = new Date().toISOString();
-
-  if (status === "completed") {
-    const customers = loadArr<any>(CUSTOMERS_KEY);
-    const ci = customers.findIndex((c) => c.id === all[idx].customer_id);
-    if (ci !== -1) {
-      customers[ci].visit_count = (customers[ci].visit_count || 0) + 1;
-      customers[ci].last_visit_at = new Date().toISOString();
-      saveArr(CUSTOMERS_KEY, customers);
-    }
-  }
-  saveArr(BOOKINGS_KEY, all);
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function rescheduleAppointment(
@@ -212,71 +167,97 @@ export async function rescheduleAppointment(
   date: string,
   start_time: string
 ): Promise<void> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const idx = all.findIndex((a) => a.id === id);
-  if (idx === -1) return;
-  const services = loadArr<any>("kemekem.services");
-  const service = services.find((s) => s.id === all[idx].service_id);
+  const supabase = getSupabase();
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("service_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!appt) throw new Error("Appointment not found");
+
+  const { data: service } = await supabase
+    .from("services")
+    .select("duration_minutes")
+    .eq("id", appt.service_id)
+    .maybeSingle();
   const duration = service?.duration_minutes || 60;
   const startMin = timeToMinutes(start_time);
   const endTime = minutesToTime(startMin + duration);
-  all[idx].appointment_date = date;
-  all[idx].start_time = start_time;
-  all[idx].end_time = endTime;
-  all[idx].status = "confirmed";
-  all[idx].updated_at = new Date().toISOString();
-  saveArr(BOOKINGS_KEY, all);
+
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      appointment_date: date,
+      start_time,
+      end_time: endTime,
+      status: "confirmed",
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function cancelAppointment(
   id: string,
   reason?: string
 ): Promise<void> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const idx = all.findIndex((a) => a.id === id);
-  if (idx === -1) return;
-  all[idx].status = "cancelled";
-  all[idx].cancel_reason = reason || null;
-  all[idx].updated_at = new Date().toISOString();
-  saveArr(BOOKINGS_KEY, all);
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status: "cancelled", cancel_reason: reason || null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function markAppointmentPaid(
   id: string,
-  method: "cash" | "card" | "telebirr" | "transfer" | "other",
+  method: PaymentMethod,
   amount: number
 ): Promise<void> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const idx = all.findIndex((a) => a.id === id);
-  if (idx === -1) return;
-  all[idx].payment_status = "paid";
-  all[idx].payment_method = method;
-  all[idx].paid_at = new Date().toISOString();
-  all[idx].paid_amount = amount;
-  all[idx].updated_at = new Date().toISOString();
-  saveArr(BOOKINGS_KEY, all);
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      payment_status: "paid",
+      payment_method: method,
+      paid_at: new Date().toISOString(),
+      paid_amount: amount,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function unmarkAppointmentPaid(id: string): Promise<void> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  const idx = all.findIndex((a) => a.id === id);
-  if (idx === -1) return;
-  all[idx].payment_status = "unpaid";
-  all[idx].paid_at = null;
-  all[idx].paid_amount = null;
-  all[idx].payment_method = null;
-  all[idx].updated_at = new Date().toISOString();
-  saveArr(BOOKINGS_KEY, all);
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("appointments")
+    .update({
+      payment_status: "unpaid",
+      paid_at: null,
+      paid_amount: null,
+      payment_method: null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  return (all.find((a) => a.id === id) as Appointment) || null;
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as Appointment) || null;
 }
 
 export async function getAppointmentByToken(
   token: string
 ): Promise<Appointment | null> {
-  const all = loadArr<any>(BOOKINGS_KEY);
-  return (all.find((a) => a.cancel_token === token) as Appointment) || null;
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("cancel_token", token)
+    .maybeSingle();
+  return (data as Appointment) || null;
 }

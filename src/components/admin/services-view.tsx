@@ -18,7 +18,7 @@ const EMPTY = {
 };
 
 export function ServicesView() {
-  const [services, setServices] = useServices();
+  const [services, setServices, , , removeService] = useServices();
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<any>(EMPTY);
@@ -49,7 +49,7 @@ export function ServicesView() {
     setSaving(true);
     try {
       if (editing) {
-        setServices(
+        await setServices(
           services.map((s) =>
             s.id === editing.id ? { ...form, id: editing.id } : s
           )
@@ -57,7 +57,7 @@ export function ServicesView() {
         toast.success("Service updated");
       } else {
         const id = `svc-${Date.now().toString(36)}`;
-        setServices([...services, { ...form, id }]);
+        await setServices([...services, { ...form, id }]);
         toast.success("Service added");
       }
       close();
@@ -70,7 +70,7 @@ export function ServicesView() {
 
   const remove = (id: string) => {
     if (!confirm("Delete this service?")) return;
-    setServices(services.filter((s) => s.id !== id));
+    removeService(id);
     toast.success("Service deleted");
   };
 
@@ -271,7 +271,7 @@ export function ServicesView() {
               <input
                 type="checkbox"
                 checked={form.is_visible}
-                onChange={(e) => set("is_visible", e.target.checked)}
+                onChange={(e) => setField("is_visible", e.target.checked)}
                 className="h-4 w-4 rounded border-border"
               />
               Visible to customers

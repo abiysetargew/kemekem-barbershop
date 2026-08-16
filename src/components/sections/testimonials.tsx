@@ -57,7 +57,7 @@ export function Testimonials() {
                 &ldquo;{r.content}&rdquo;
               </p>
               <div className="mt-6 flex items-center gap-3 border-t border-border pt-5">
-                <Avatar src={r.avatar_url || null} alt={r.customer_name} size="md" />
+                <Avatar src={(r as any).avatar_url || null} alt={r.customer_name} size="md" />
                 <div>
                   <div className="font-display text-lg font-medium">
                     {r.customer_name}

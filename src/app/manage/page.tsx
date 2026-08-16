@@ -3,31 +3,42 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, MapPin, Search } from "lucide-react";
 import { motion } from "framer-motion";
+import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function ManagePage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [token, setToken] = useState("");
+  const [searching, setSearching] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (token.trim()) {
       router.push(`/manage/${token.trim()}`);
       return;
     }
     if (phone.trim()) {
+      setSearching(true);
       try {
-        const raw = localStorage.getItem("kemekem.appointments");
-        const list = raw ? JSON.parse(raw) : [];
-        const match = list.find((a: any) =>
-          (a.customer_phone || "").replace(/\s/g, "").includes(phone.replace(/\s/g, ""))
-        );
-        if (match) {
-          router.push(`/manage/${match.cancel_token}`);
+        const supabase = createBrowserClient();
+        const cleaned = phone.replace(/\s/g, "");
+        const { data } = await supabase
+          .from("appointments")
+          .select("cancel_token")
+          .or(`customer_phone.ilike.%${cleaned}%`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.cancel_token) {
+          router.push(`/manage/${data.cancel_token}`);
           return;
         }
-      } catch {}
-      alert("No booking found in this browser. Use the link from your confirmation.");
+        alert("No booking found for that phone number. Use the link from your confirmation message.");
+      } catch {
+        alert("Search failed. Try again or use the link from your confirmation message.");
+      } finally {
+        setSearching(false);
+      }
     }
   };
 
@@ -79,10 +90,11 @@ export default function ManagePage() {
           </div>
           <button
             type="submit"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background transition-all hover:opacity-90"
+            disabled={searching}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background transition-all hover:opacity-90 disabled:opacity-50"
           >
             <Search className="h-4 w-4" />
-            Find my booking
+            {searching ? "Searching…" : "Find my booking"}
           </button>
         </form>
 

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 // Telegram notification dispatcher.
 // Add these env vars to Vercel to receive booking alerts:
 //   TELEGRAM_BOT_TOKEN  — from @BotFather
-//   TELEGRAM_CHAT_ID    — your personal chat id
+//   TELEGRAM_CHAT_IDS   — comma-separated chat ids (e.g. "7763341927,368494673")
+//   TELEGRAM_CHAT_ID    — single chat id (back-compat; ignored if CHAT_IDS is set)
 // Without them, this endpoint is a silent no-op.
 
 type NotifyType =
@@ -59,13 +60,19 @@ function fmt(payload: NotifyPayload): string {
   return lines.join("\n");
 }
 
-async function send(text: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) {
-    console.warn("[NOTIFY] Telegram not configured");
-    return;
+function getChatIds(): string[] {
+  const multi = process.env.TELEGRAM_CHAT_IDS;
+  if (multi && multi.trim()) {
+    return multi
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
+  const single = process.env.TELEGRAM_CHAT_ID;
+  return single ? [single.trim()] : [];
+}
+
+async function sendOne(token: string, chatId: string, text: string): Promise<void> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
@@ -79,13 +86,27 @@ async function send(text: string): Promise<void> {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.error("[TELEGRAM ERROR]", res.status, data);
+      console.error("[TELEGRAM ERROR]", chatId, res.status, data);
     } else {
-      console.log("[TELEGRAM SENT]", data?.result?.message_id);
+      console.log("[TELEGRAM SENT]", chatId, data?.result?.message_id);
     }
   } catch (e) {
-    console.error("[TELEGRAM FAIL]", e);
+    console.error("[TELEGRAM FAIL]", chatId, e);
   }
+}
+
+async function send(text: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatIds = getChatIds();
+  if (!token) {
+    console.warn("[NOTIFY] Telegram not configured (missing TELEGRAM_BOT_TOKEN)");
+    return;
+  }
+  if (chatIds.length === 0) {
+    console.warn("[NOTIFY] Telegram not configured (missing TELEGRAM_CHAT_IDS / TELEGRAM_CHAT_ID)");
+    return;
+  }
+  await Promise.all(chatIds.map((id) => sendOne(token, id, text)));
 }
 
 export async function POST(req: Request) {
@@ -104,5 +125,5 @@ export async function POST(req: Request) {
 // GET for manual testing — visit /api/notify to send a test message
 export async function GET() {
   await send("🧪 *Test notification*\n\nYour Telegram bot is connected to Kemekem Barbershop.");
-  return NextResponse.json({ ok: true, telegramConfigured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) });
+  return NextResponse.json({ ok: true, telegramConfigured: !!(process.env.TELEGRAM_BOT_TOKEN && getChatIds().length > 0) });
 }

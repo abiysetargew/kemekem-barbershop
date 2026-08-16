@@ -20,6 +20,7 @@ import {
   useBarbers,
   useAppointments,
 } from "@/lib/store";
+import { createBooking } from "@/lib/booking";
 import { cn, formatCurrency, timeToMinutes, minutesToTime, formatTime12h } from "@/lib/utils";
 import { toast } from "sonner";
 import { ScissorsLoader } from "@/components/visual";
@@ -66,7 +67,7 @@ function computeSlots(
       if (m <= nowMin) continue;
     }
     const conflict = existing.some((a) => {
-      if (a.status === "cancelled" || a.no_show) return false;
+      if (a.status === "cancelled" || a.status === "no_show") return false;
       const aStart = timeToMinutes((a.start_time as string).slice(0, 5));
       const aEnd = timeToMinutes((a.end_time as string).slice(0, 5));
       return m < aEnd && m + duration > aStart;
@@ -81,9 +82,9 @@ export function BookingFlow() {
   const searchParams = useSearchParams();
 
   const [branches] = useBranches();
-  const [services, setServices] = useServices();
+  const [services] = useServices();
   const [barbers] = useBarbers();
-  const [appointments, setAppointments] = useAppointments();
+  const [appointments] = useAppointments();
 
   const [step, setStep] = useState(1);
   const [branchId, setBranchId] = useState<string>(
@@ -150,58 +151,18 @@ export function BookingFlow() {
         throw new Error("Missing booking context");
       }
 
-      const startMin = timeToMinutes(slot);
-      const endTime = minutesToTime(startMin + selectedService.duration_minutes);
-
-      const BOOKINGS_KEY = "kemekem.appointments";
-      const CUSTOMERS_KEY = "kemekem.customers";
-
-      // Customer upsert
-      const customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || "[]");
-      let customer = customers.find((c: any) => c.phone === phone);
-      if (!customer) {
-        customer = {
-          id: `cust-${Date.now().toString(36)}`,
-          name,
-          phone,
-          notes: "",
-          visit_count: 0,
-          last_visit_at: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        customers.push(customer);
-        localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
-      }
-
-      // Append appointment
-      const all = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || "[]");
-      const num = `KEM-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.floor(1000+Math.random()*9000)}`;
-      const appt = {
-        id: `appt-${Date.now().toString(36)}`,
-        shop_id: null,
-        appointment_number: num,
-        customer_id: customer.id,
-        customer_name: name,
-        customer_phone: phone,
-        notes: notes || null,
-        referred_by: referredBy || null,
+      const appt = await createBooking({
         branch_id: branchId,
         service_id: serviceId,
         barber_id: target.id,
-        appointment_date: date,
+        date,
         start_time: slot,
-        end_time: endTime,
-        status: "confirmed",
-        cancel_token: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      all.push(appt);
-      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(all));
-      window.dispatchEvent(new CustomEvent("kemekem:update"));
+        customer_name: name,
+        customer_phone: phone,
+        notes: notes || undefined,
+        referred_by: referredBy || undefined,
+      });
 
-      // Fire-and-forget notification (no-op if Telegram not configured)
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const manageLink = `${origin}/manage/${appt.cancel_token}`;
       fetch("/api/notify", {
@@ -216,14 +177,14 @@ export function BookingFlow() {
           branch_name: selectedBranch.name,
           date,
           time: slot,
-          appointment_number: num,
+          appointment_number: appt.appointment_number,
           manage_link: manageLink,
         }),
       })
-        .then((r) => console.log("[NOTIFY]", r.status, num))
+        .then((r) => console.log("[NOTIFY]", r.status, appt.appointment_number))
         .catch((e) => console.error("[NOTIFY FAIL]", e));
 
-      toast.success(`Booked! Confirmation #${num}`);
+      toast.success(`Booked! Confirmation #${appt.appointment_number}`);
       router.push(`/book/success?id=${appt.id}`);
     } catch (e: any) {
       toast.error(e.message || "Booking failed");

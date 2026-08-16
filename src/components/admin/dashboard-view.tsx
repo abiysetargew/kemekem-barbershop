@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import { useAppointments, useServices, useBarbers, resetSeedData } from "@/lib/store";
+import { useAppointments, useServices, useBarbers } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -70,23 +70,6 @@ export function DashboardView() {
           <h1 className="heading-2 mt-1">Welcome back</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              if (
-                !confirm(
-                  "Restore default data?\n\nThis will re-seed:\n• 7 barbers\n• 10 services\n• 2 branches\n• 6 gallery images\n• 4 reviews\n• 7 sample bookings\n\nYour admin edits (services, barbers, gallery) are kept. Only the missing items return."
-                )
-              )
-                return;
-              resetSeedData();
-              toast.success("Defaults restored. Reloading…");
-              setTimeout(() => window.location.reload(), 600);
-            }}
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Restore defaults
-          </button>
           <Link
             href="/book"
             target="_blank"

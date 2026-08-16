@@ -17,7 +17,7 @@ const EMPTY: any = {
 };
 
 export function BranchesView() {
-  const [branches, setBranches] = useBranches();
+  const [branches, setBranches, , , removeBranch] = useBranches();
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<any>(EMPTY);
@@ -30,25 +30,27 @@ export function BranchesView() {
   const close = () => { setEditing(null); setCreating(false); setForm(EMPTY); };
   const setField = (k: string, v: any) => setForm({ ...form, [k]: v });
 
-  const save = () => {
+  const save = async () => {
     if (!form.name) { toast.error("Name required"); return; }
     setSaving(true);
     try {
       if (editing) {
-        setBranches(branches.map((b) => b.id === editing.id ? { ...form, id: editing.id } : b));
+        await setBranches(branches.map((b) => b.id === editing.id ? { ...form, id: editing.id } : b));
         toast.success("Updated");
       } else {
         const id = `br-${Date.now().toString(36)}`;
-        setBranches([...branches, { ...form, id }]);
+        await setBranches([...branches, { ...form, id }]);
         toast.success("Added");
       }
       close();
+    } catch (e: any) {
+      toast.error(e.message);
     } finally { setSaving(false); }
   };
 
   const remove = (id: string) => {
     if (!confirm("Delete this branch?")) return;
-    setBranches(branches.filter((b) => b.id !== id));
+    removeBranch(id);
     toast.success("Deleted");
   };
 

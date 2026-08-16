@@ -413,7 +413,7 @@ const fmt = (offsetDays: number) => {
   return d.toISOString().split("T")[0];
 };
 
-export const SAMPLE_CUSTOMERS: Customer[] = [
+export const SAMPLE_CUSTOMERS: any[] = [
   {
     id: "cust-henok",
     name: "Henok Alemu",
@@ -481,7 +481,7 @@ export const SAMPLE_CUSTOMERS: Customer[] = [
   },
 ];
 
-export const SAMPLE_BOOKINGS: Appointment[] = [
+export const SAMPLE_BOOKINGS: any[] = [
   // Today: morning bookings
   {
     id: "appt-001",

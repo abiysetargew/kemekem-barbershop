@@ -30,7 +30,7 @@ export default function ManageBookingPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
-  const [appointments, setAppointments] = useAppointments();
+  const [appointments] = useAppointments();
   const [services] = useServices();
   const [barbers] = useBarbers();
   const [branches] = useBranches();
@@ -57,8 +57,8 @@ export default function ManageBookingPage({
         <div className="container-tight max-w-xl text-center">
           <h1 className="display text-4xl sm:text-5xl">Booking not found</h1>
           <p className="mt-3 text-muted-foreground">
-            This booking is not in this browser. If you booked on another device,
-            ask the front desk to manage it for you.
+            We couldn&apos;t find this booking. The link may be invalid or expired.
+            If you booked recently, please contact the shop.
           </p>
           <Link
             href="/book"
@@ -77,13 +77,11 @@ export default function ManageBookingPage({
 
   const update = async (s: AppointmentStatus) => {
     await updateAppointmentStatus(appt.id, s);
-    setAppointments([...appointments]);
   };
 
   const cancel = async () => {
     if (!confirm("Cancel this booking?")) return;
     await cancelAppointment(appt.id);
-    setAppointments([...appointments]);
     fetch("/api/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,7 +101,6 @@ export default function ManageBookingPage({
   const onReschedule = async () => {
     if (!date || !slot) return;
     await rescheduleAppointment(appt.id, date, slot);
-    setAppointments([...appointments]);
     setRescheduling(false);
     setDate("");
     setSlot("");

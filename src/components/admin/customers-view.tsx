@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, X, Search, Users, Phone, Mail } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useCustomers, nextId } from "@/lib/store";
+import { createBrowserClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 const EMPTY = {
@@ -15,7 +16,7 @@ const EMPTY = {
 };
 
 export function CustomersView() {
-  const [customers, , updateOne, addOne, removeOne] = useCustomers();
+  const [customers, , updateOne, , removeCustomer] = useCustomers();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
@@ -46,29 +47,36 @@ export function CustomersView() {
     setForm(EMPTY);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.name || !form.phone) {
       toast.error("Name and phone are required");
       return;
     }
-    if (editing) {
-      updateOne(editing.id, () => ({ ...form, updated_at: new Date().toISOString() }));
-      toast.success("Customer updated");
-    } else {
-      addOne({
-        ...form,
-        id: nextId("cust"),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-      toast.success("Customer added");
+    const supabase = createBrowserClient();
+    try {
+      if (editing) {
+        await updateOne(editing.id, () => ({ ...form, updated_at: new Date().toISOString() }));
+        toast.success("Customer updated");
+      } else {
+        const newRow = {
+          ...form,
+          id: nextId("cust"),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabase.from("customers").insert(newRow);
+        if (error) throw new Error(error.message);
+        toast.success("Customer added");
+      }
+      close();
+    } catch (e: any) {
+      toast.error(e.message);
     }
-    close();
   };
 
   const remove = (id: string) => {
     if (!confirm("Delete this customer? Appointments stay in the calendar.")) return;
-    removeOne(id);
+    removeCustomer(id);
     toast.success("Deleted");
   };
 
