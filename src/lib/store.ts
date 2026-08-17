@@ -83,13 +83,57 @@ function useSupabaseCollection<T extends { id: string }>(
   return [data, update, updateOne, { hydrated, error }] as const;
 }
 
-async function persistRow<T>(table: string, row: T): Promise<void> {
+async function persistRow<T extends { id: string }>(table: string, row: T): Promise<string> {
   const supabase = getSupabase();
-  const { error } = await supabase.from(table).upsert(row as any);
+  const r: any = { ...row };
+  if (r?.id && !isUuid(r.id)) {
+    r.id = generateUuid();
+  }
+  const { error, data } = await supabase.from(table).upsert(r).select().single();
   if (error) {
-    console.error(`[UPSERT ${table}]`, error);
+    console.error(`[UPSERT ${table}]`, error, r);
     throw new Error(error.message);
   }
+  return (data as T).id;
+}
+
+async function persistCollection<T extends { id: string }>(
+  table: string,
+  rows: T[]
+): Promise<Map<string, string>> {
+  const idMap = new Map<string, string>();
+  for (const row of rows) {
+    try {
+      const originalId = row.id;
+      const newId = await persistRow(table, row);
+      if (newId !== originalId) {
+        idMap.set(originalId, newId);
+      }
+    } catch (e) {
+      console.error(`[persistCollection ${table}]`, e);
+    }
+  }
+  return idMap;
+}
+
+function remapIds<T extends { id: string }>(rows: T[], idMap: Map<string, string>): T[] {
+  if (idMap.size === 0) return rows;
+  return rows.map((r) => ({ ...r, id: idMap.get(r.id) ?? r.id }));
+}
+
+function isUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+function generateUuid(): string {
+  if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
+    return (crypto as any).randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 async function removeRow(table: string, id: string): Promise<void> {
@@ -154,7 +198,8 @@ export function useServices() {
     async (next: Service[] | ((prev: Service[]) => Service[])) => {
       const value = typeof next === "function" ? (next as (p: Service[]) => Service[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("services", row)));
+      const idMap = await persistCollection("services", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -162,8 +207,12 @@ export function useServices() {
     async (id: string, mutator: (item: Service) => Service) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("services", target);
+      const idMap = await persistCollection("services", [target]);
+      if (idMap.size > 0) {
+        setData((cur) => remapIds(cur, idMap));
+      }
     },
     [data, setData]
   );
@@ -188,7 +237,8 @@ export function useBarbers() {
     async (next: Barber[] | ((prev: Barber[]) => Barber[])) => {
       const value = typeof next === "function" ? (next as (p: Barber[]) => Barber[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("barbers", row)));
+      const idMap = await persistCollection("barbers", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -196,8 +246,10 @@ export function useBarbers() {
     async (id: string, mutator: (item: Barber) => Barber) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("barbers", target);
+      const idMap = await persistCollection("barbers", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -222,7 +274,8 @@ export function useBranches() {
     async (next: Branch[] | ((prev: Branch[]) => Branch[])) => {
       const value = typeof next === "function" ? (next as (p: Branch[]) => Branch[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("branches", row)));
+      const idMap = await persistCollection("branches", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -230,8 +283,10 @@ export function useBranches() {
     async (id: string, mutator: (item: Branch) => Branch) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("branches", target);
+      const idMap = await persistCollection("branches", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -256,7 +311,8 @@ export function useSocials() {
     async (next: SocialLink[] | ((prev: SocialLink[]) => SocialLink[])) => {
       const value = typeof next === "function" ? (next as (p: SocialLink[]) => SocialLink[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("social_links", row)));
+      const idMap = await persistCollection("social_links", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -264,8 +320,10 @@ export function useSocials() {
     async (id: string, mutator: (item: SocialLink) => SocialLink) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("social_links", target);
+      const idMap = await persistCollection("social_links", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -290,7 +348,8 @@ export function useGallery() {
     async (next: GalleryItem[] | ((prev: GalleryItem[]) => GalleryItem[])) => {
       const value = typeof next === "function" ? (next as (p: GalleryItem[]) => GalleryItem[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("gallery", row)));
+      const idMap = await persistCollection("gallery", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -298,8 +357,10 @@ export function useGallery() {
     async (id: string, mutator: (item: GalleryItem) => GalleryItem) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("gallery", target);
+      const idMap = await persistCollection("gallery", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -324,7 +385,8 @@ export function useReviews() {
     async (next: Review[] | ((prev: Review[]) => Review[])) => {
       const value = typeof next === "function" ? (next as (p: Review[]) => Review[])(data) : next;
       setData(value);
-      await Promise.all(value.map((row) => persistRow("reviews", row)));
+      const idMap = await persistCollection("reviews", value);
+      setData(remapIds(value, idMap));
     },
     [data, setData]
   );
@@ -332,8 +394,10 @@ export function useReviews() {
     async (id: string, mutator: (item: Review) => Review) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("reviews", target);
+      const idMap = await persistCollection("reviews", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -381,8 +445,10 @@ export function useAppointments() {
     async (id: string, mutator: (item: Appointment) => Appointment) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("appointments", target);
+      const idMap = await persistCollection("appointments", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -414,8 +480,10 @@ export function useCustomers() {
     async (id: string, mutator: (item: Customer) => Customer) => {
       const next = data.map((item) => (item.id === id ? mutator(item) : item));
       const target = next.find((x) => x.id === id);
+      if (!target) return;
       setData(next);
-      if (target) await persistRow("customers", target);
+      const idMap = await persistCollection("customers", [target]);
+      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
     },
     [data, setData]
   );
@@ -430,6 +498,6 @@ export function useCustomers() {
 }
 
 // ============= HELPERS =============
-export function nextId(prefix = "id") {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+export function nextId(_prefix = "id") {
+  return generateUuid();
 }

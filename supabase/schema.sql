@@ -117,6 +117,13 @@ create table public.appointments (
   end_time time not null,
   status appointment_status default 'pending',
   cancel_token uuid default uuid_generate_v4(),
+  payment_status text default 'unpaid',
+  payment_method text,
+  paid_at timestamptz,
+  paid_amount numeric(10,2),
+  cancel_reason text,
+  referred_by text,
+  total_spent numeric(10,2) default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
