@@ -46,7 +46,9 @@ export function Footer() {
             </p>
             {socials.length > 0 && (
               <div className="mt-6 flex items-center gap-2">
-                {socials.map((s) => {
+                {Array.from(
+                  new Map(socials.map((s) => [(s.platform || "").toLowerCase(), s])).values()
+                ).map((s) => {
                   const Icon = getSocialIcon(s.platform as any);
                   return (
                     <a

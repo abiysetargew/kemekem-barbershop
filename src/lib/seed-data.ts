@@ -388,10 +388,10 @@ export const SEED_REVIEWS: Review[] = [
   },
 ];
 
-export const SEED_SOCIALS: SocialLink[] = [
-  { id: "1", shop_id: null, platform: "instagram", url: "https://www.instagram.com/kemekem_barbershop", display_order: 1 },
-  { id: "2", shop_id: null, platform: "tiktok", url: "https://www.tiktok.com/@kemekembarbershop", display_order: 2 },
-  { id: "3", shop_id: null, platform: "facebook", url: "https://www.facebook.com/share/1LCfmr9Ckm/", display_order: 3 },
+export const SEED_SOCIALS: any[] = [
+  { id: "1", shop_id: null, platform: "tiktok", url: "https://www.tiktok.com/@kemekembarbershop", display_order: 0 },
+  { id: "2", shop_id: null, platform: "instagram", url: "https://www.instagram.com/kemekem_barbershop", display_order: 1 },
+  { id: "3", shop_id: null, platform: "facebook", url: "https://www.facebook.com/share/1LCfmr9Ckm/", display_order: 2 },
 ];
 
 export const SEED_GALLERY: GalleryItem[] = [
