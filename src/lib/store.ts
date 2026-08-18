@@ -173,11 +173,14 @@ function useSupabaseCollection<T extends { id: string }>(
     if (typeof window !== "undefined") {
       window.addEventListener("focus", onFocus);
     }
+    // Polling fallback every 5s — guarantees cross-tab sync even if real-time misses
+    const interval = setInterval(refetch, 5000);
     return () => {
       release();
       if (typeof window !== "undefined") {
         window.removeEventListener("focus", onFocus);
       }
+      clearInterval(interval);
     };
   }, [refetch, table]);
 
@@ -306,11 +309,14 @@ function useSupabaseSingleton<T extends Record<string, any>>(
     if (typeof window !== "undefined") {
       window.addEventListener("focus", onFocus);
     }
+    // Polling fallback every 5s — guarantees cross-tab sync even if real-time misses
+    const interval = setInterval(refetch, 5000);
     return () => {
       release();
       if (typeof window !== "undefined") {
         window.removeEventListener("focus", onFocus);
       }
+      clearInterval(interval);
     };
   }, [refetch, table]);
 
