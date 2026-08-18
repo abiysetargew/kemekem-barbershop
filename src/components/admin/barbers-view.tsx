@@ -24,7 +24,7 @@ const EMPTY: any = {
 };
 
 export function BarbersView() {
-  const [barbers, setBarbers, , , removeBarber] = useBarbers();
+  const [barbers, setBarbers, , removeBarber] = useBarbers();
   const [branches] = useBranches();
   const [editing, setEditing] = useState<Barber | null>(null);
   const [creating, setCreating] = useState(false);

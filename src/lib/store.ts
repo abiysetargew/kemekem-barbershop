@@ -3,11 +3,19 @@
 //
 // Storage model: Supabase (Postgres) is the source of truth.
 // Hooks read from Supabase on mount, subscribe to real-time changes,
-// and optimistically update local state on writes.
+// and write through Supabase on mutations.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { SEED_SERVICES, SEED_BARBERS, SEED_BRANCHES, SEED_SOCIALS, SEED_GALLERY, SEED_SETTINGS, SEED_REVIEWS } from "./seed-data";
+import {
+  SEED_SERVICES,
+  SEED_BARBERS,
+  SEED_BRANCHES,
+  SEED_SOCIALS,
+  SEED_GALLERY,
+  SEED_SETTINGS,
+  SEED_REVIEWS,
+} from "./seed-data";
 import type {
   Branch,
   Service,
@@ -22,110 +30,6 @@ import type {
 
 function getSupabase() {
   return createBrowserClient();
-}
-
-function useSupabaseCollection<T extends { id: string }>(
-  table: string,
-  orderBy: string = "display_order",
-  filters?: (q: any) => any,
-  fallback: T[] = []
-) {
-  const [data, setData] = useState<T[]>(fallback);
-  const [hydrated, setHydrated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAll = useCallback(async () => {
-    const supabase = getSupabase();
-    let q: any = supabase.from(table).select("*");
-    if (filters) q = filters(q);
-    q = q.order(orderBy);
-    const { data: rows, error: err } = await q;
-    if (err) {
-      setError(err.message);
-      return;
-    }
-    setData((rows as T[]) ?? []);
-    setHydrated(true);
-  }, [table, orderBy]);
-
-  useEffect(() => {
-    fetchAll();
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel(`${table}-changes`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => fetchAll()
-      )
-      .subscribe();
-    const onFocus = () => fetchAll();
-    if (typeof window !== "undefined") {
-      window.addEventListener("focus", onFocus);
-    }
-    return () => {
-      supabase.removeChannel(channel);
-      if (typeof window !== "undefined") {
-        window.removeEventListener("focus", onFocus);
-      }
-    };
-  }, [fetchAll]);
-
-  const update = useCallback(
-    async (next: T[] | ((prev: T[]) => T[])) => {
-      const value = typeof next === "function" ? (next as (p: T[]) => T[])(data) : next;
-      setData(value);
-    },
-    [data]
-  );
-
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: T) => T) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      setData(next);
-    },
-    [data]
-  );
-
-  return [data, update, updateOne, { hydrated, error }] as const;
-}
-
-async function persistRow<T extends { id: string }>(table: string, row: T): Promise<string> {
-  const supabase = getSupabase();
-  const r: any = { ...row };
-  if (r?.id && !isUuid(r.id)) {
-    r.id = generateUuid();
-  }
-  const { error, data } = await supabase.from(table).upsert(r).select().single();
-  if (error) {
-    console.error(`[UPSERT ${table}]`, error, r);
-    throw new Error(error.message);
-  }
-  return (data as T).id;
-}
-
-async function persistCollection<T extends { id: string }>(
-  table: string,
-  rows: T[]
-): Promise<Map<string, string>> {
-  const idMap = new Map<string, string>();
-  for (const row of rows) {
-    try {
-      const originalId = row.id;
-      const newId = await persistRow(table, row);
-      if (newId !== originalId) {
-        idMap.set(originalId, newId);
-      }
-    } catch (e) {
-      console.error(`[persistCollection ${table}]`, e);
-    }
-  }
-  return idMap;
-}
-
-function remapIds<T extends { id: string }>(rows: T[], idMap: Map<string, string>): T[] {
-  if (idMap.size === 0) return rows;
-  return rows.map((r) => ({ ...r, id: idMap.get(r.id) ?? r.id }));
 }
 
 function isUuid(s: string): boolean {
@@ -143,7 +47,74 @@ function generateUuid(): string {
   });
 }
 
-async function removeRow(table: string, id: string): Promise<void> {
+// Global registry to share channels across multiple hook instances
+const channelRegistry = new Map<string, { count: number; refetch: () => void }>();
+let channelInstanceCounter = 0;
+
+function acquireChannel(table: string, refetch: () => void): () => void {
+  let entry = channelRegistry.get(table);
+  if (!entry) {
+    const supabase = getSupabase();
+    const channelName = `${table}-rt-${++channelInstanceCounter}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        () => entry?.refetch()
+      )
+      .subscribe();
+    entry = { count: 0, refetch };
+    channelRegistry.set(table, entry);
+    entry.refetch();
+    // Stash cleanup function on entry
+    (entry as any)._cleanup = () => {
+      supabase.removeChannel(channel);
+      channelRegistry.delete(table);
+    };
+  }
+  entry.count += 1;
+  entry.refetch = refetch;
+  return () => {
+    if (!entry) return;
+    entry.count -= 1;
+    if (entry.count <= 0) {
+      const cleanup = (entry as any)._cleanup;
+      if (cleanup) cleanup();
+    }
+  };
+}
+
+// ============= LOW-LEVEL MUTATIONS =============
+async function upsertRow<T extends { id?: string }>(table: string, row: T): Promise<T> {
+  const supabase = getSupabase();
+  const r: any = { ...row };
+  if (r.id && !isUuid(r.id)) delete r.id;
+  const { data, error } = await supabase.from(table).upsert(r).select().single();
+  if (error) {
+    console.error(`[UPSERT ${table}]`, error, r);
+    throw new Error(error.message);
+  }
+  return data as T;
+}
+
+async function upsertRows<T extends { id?: string }>(table: string, rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return [];
+  const cleaned = rows.map((row) => {
+    const r: any = { ...row };
+    if (r.id && !isUuid(r.id)) delete r.id;
+    return r;
+  });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from(table).upsert(cleaned).select();
+  if (error) {
+    console.error(`[UPSERT-MANY ${table}]`, error);
+    throw new Error(error.message);
+  }
+  return (data ?? []) as T[];
+}
+
+async function deleteRow(table: string, id: string): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) {
@@ -152,359 +123,308 @@ async function removeRow(table: string, id: string): Promise<void> {
   }
 }
 
-function useSupabaseSingle<T>(
+async function updateRow<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from(table)
+    .update(patch as any)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) {
+    console.error(`[UPDATE ${table}]`, error);
+    throw new Error(error.message);
+  }
+  return data as T;
+}
+
+// ============= COLLECTION HOOK =============
+function useSupabaseCollection<T extends { id: string }>(
   table: string,
-  fallback: T,
-  match?: { column: string; value: any }
+  orderBy: string = "display_order",
+  ascending: boolean = true,
+  fallback: T[] = []
+) {
+  const [data, setData] = useState<T[]>(fallback);
+  const [hydrated, setHydrated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dataRef = useRef<T[]>(fallback);
+  dataRef.current = data;
+
+  const refetch = useCallback(async () => {
+    const supabase = getSupabase();
+    let q: any = supabase.from(table).select("*");
+    q = q.order(orderBy, { ascending });
+    const { data: rows, error: err } = await q;
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const next = (rows ?? []) as T[];
+    setData(next);
+    dataRef.current = next;
+    setHydrated(true);
+  }, [table, orderBy, ascending]);
+
+  useEffect(() => {
+    refetch();
+    const release = acquireChannel(table, refetch);
+    const onFocus = () => refetch();
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+    }
+    return () => {
+      release();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+      }
+    };
+  }, [refetch, table]);
+
+  const update = useCallback(
+    async (next: T[] | ((prev: T[]) => T[])) => {
+      const value =
+        typeof next === "function"
+          ? (next as (p: T[]) => T[])(dataRef.current)
+          : next;
+      setData(value);
+      dataRef.current = value;
+      try {
+        await upsertRows(table, value);
+      } catch (e) {
+        console.error(`[update ${table}]`, e);
+        throw e;
+      }
+    },
+    [table]
+  );
+
+  const updateOne = useCallback(
+    async (id: string, mutator: (item: T) => T) => {
+      const target = dataRef.current.find((x) => x.id === id);
+      if (!target) return;
+      const updated = mutator(target);
+      const next = dataRef.current.map((item) => (item.id === id ? updated : item));
+      setData(next);
+      dataRef.current = next;
+      try {
+        const saved = await upsertRow(table, updated);
+        // If Supabase gave us a new id (because old id wasn't UUID), remap
+        if (saved.id !== id) {
+          const remapped = dataRef.current.map((x) => (x.id === id ? saved : x));
+          setData(remapped);
+          dataRef.current = remapped;
+        }
+      } catch (e) {
+        console.error(`[updateOne ${table}]`, e);
+        throw e;
+      }
+    },
+    [table]
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      const next = dataRef.current.filter((x) => x.id !== id);
+      setData(next);
+      dataRef.current = next;
+      try {
+        await deleteRow(table, id);
+      } catch (e) {
+        console.error(`[remove ${table}]`, e);
+        throw e;
+      }
+    },
+    [table]
+  );
+
+  const insert = useCallback(
+    async (row: T): Promise<T> => {
+      try {
+        const saved = await upsertRow(table, row);
+        const next = [...dataRef.current, saved];
+        setData(next);
+        dataRef.current = next;
+        return saved;
+      } catch (e) {
+        console.error(`[insert ${table}]`, e);
+        throw e;
+      }
+    },
+    [table]
+  );
+
+  return [data, update, updateOne, remove, insert, { hydrated, error }] as const;
+}
+
+// ============= SINGLETON HOOK =============
+function useSupabaseSingleton<T extends Record<string, any>>(
+  table: string,
+  fixedId: string,
+  fallback: T
 ) {
   const [data, setData] = useState<T>(fallback);
   const [hydrated, setHydrated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dataRef = useRef<T>(fallback);
+  dataRef.current = data;
 
-  const fetchOne = useCallback(async () => {
+  const refetch = useCallback(async () => {
     const supabase = getSupabase();
-    let q: any = supabase.from(table).select("*");
-    if (match) q = q.eq(match.column, match.value).maybeSingle();
-    else q = q.limit(1).maybeSingle();
-    const { data: row } = await q;
-    if (row) setData(row as T);
+    const { data: row, error: err } = await supabase
+      .from(table)
+      .select("*")
+      .eq("id", fixedId)
+      .maybeSingle();
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    if (row) {
+      setData(row as T);
+      dataRef.current = row as T;
+    } else {
+      // Insert default
+      const seed = { ...fallback, id: fixedId };
+      const { data: created, error: insertErr } = await supabase
+        .from(table)
+        .upsert(seed as any)
+        .select()
+        .single();
+      if (!insertErr && created) {
+        setData(created as T);
+        dataRef.current = created as T;
+      }
+    }
     setHydrated(true);
-  }, [table, match?.column, match?.value]);
+  }, [table, fixedId]);
 
   useEffect(() => {
-    fetchOne();
-    const supabase = getSupabase();
-    const channel = supabase
-      .channel(`${table}-single-changes`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => fetchOne()
-      )
-      .subscribe();
+    refetch();
+    const release = acquireChannel(table, refetch);
+    const onFocus = () => refetch();
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+    }
     return () => {
-      supabase.removeChannel(channel);
+      release();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+      }
     };
-  }, [fetchOne]);
+  }, [refetch, table]);
 
-  const update = useCallback(async (next: T) => {
-    setData(next);
-  }, []);
+  const update = useCallback(
+    async (patch: Partial<T> | T) => {
+      const merged = { ...dataRef.current, ...patch, id: fixedId } as T;
+      setData(merged);
+      dataRef.current = merged;
+      try {
+        await updateRow(table, fixedId, patch as Partial<T>);
+      } catch (e) {
+        console.error(`[update ${table}]`, e);
+        throw e;
+      }
+    },
+    [table, fixedId]
+  );
 
-  return [data, update, { hydrated }] as const;
+  return [data, update, { hydrated, error }] as const;
 }
 
 // ============= PUBLIC HOOKS =============
 export function useServices() {
-  const [data, setData, , meta] = useSupabaseCollection<Service>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Service>(
     "services",
     "display_order",
-    (q) => q.order("display_order"),
+    true,
     SEED_SERVICES
   );
-  const update = useCallback(
-    async (next: Service[] | ((prev: Service[]) => Service[])) => {
-      const value = typeof next === "function" ? (next as (p: Service[]) => Service[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("services", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Service) => Service) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("services", [target]);
-      if (idMap.size > 0) {
-        setData((cur) => remapIds(cur, idMap));
-      }
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("services", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useBarbers() {
-  const [data, setData, , meta] = useSupabaseCollection<Barber>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Barber>(
     "barbers",
     "display_order",
-    undefined,
+    true,
     SEED_BARBERS
   );
-  const update = useCallback(
-    async (next: Barber[] | ((prev: Barber[]) => Barber[])) => {
-      const value = typeof next === "function" ? (next as (p: Barber[]) => Barber[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("barbers", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Barber) => Barber) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("barbers", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("barbers", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useBranches() {
-  const [data, setData, , meta] = useSupabaseCollection<Branch>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Branch>(
     "branches",
     "display_order",
-    undefined,
+    true,
     SEED_BRANCHES
   );
-  const update = useCallback(
-    async (next: Branch[] | ((prev: Branch[]) => Branch[])) => {
-      const value = typeof next === "function" ? (next as (p: Branch[]) => Branch[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("branches", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Branch) => Branch) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("branches", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("branches", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useSocials() {
-  const [data, setData, , meta] = useSupabaseCollection<SocialLink>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<SocialLink>(
     "social_links",
     "display_order",
-    undefined,
+    true,
     SEED_SOCIALS
   );
-  const update = useCallback(
-    async (next: SocialLink[] | ((prev: SocialLink[]) => SocialLink[])) => {
-      const value = typeof next === "function" ? (next as (p: SocialLink[]) => SocialLink[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("social_links", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: SocialLink) => SocialLink) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("social_links", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("social_links", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useGallery() {
-  const [data, setData, , meta] = useSupabaseCollection<GalleryItem>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<GalleryItem>(
     "gallery",
     "display_order",
-    undefined,
+    true,
     SEED_GALLERY
   );
-  const update = useCallback(
-    async (next: GalleryItem[] | ((prev: GalleryItem[]) => GalleryItem[])) => {
-      const value = typeof next === "function" ? (next as (p: GalleryItem[]) => GalleryItem[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("gallery", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: GalleryItem) => GalleryItem) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("gallery", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("gallery", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useReviews() {
-  const [data, setData, , meta] = useSupabaseCollection<Review>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Review>(
     "reviews",
     "created_at",
-    (q) => q.order("created_at", { ascending: false }),
+    false,
     SEED_REVIEWS
   );
-  const update = useCallback(
-    async (next: Review[] | ((prev: Review[]) => Review[])) => {
-      const value = typeof next === "function" ? (next as (p: Review[]) => Review[])(data) : next;
-      setData(value);
-      const idMap = await persistCollection("reviews", value);
-      setData(remapIds(value, idMap));
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Review) => Review) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("reviews", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("reviews", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
-}
-
-export function useBusinessSettings() {
-  const [data, setData, meta] = useSupabaseSingle<BusinessSettings>(
-    "business_settings",
-    SEED_SETTINGS
-  );
-  const update = useCallback(async (next: BusinessSettings) => {
-    setData(next);
-    const supabase = getSupabase();
-    const { error } = await supabase
-      .from("business_settings")
-      .upsert(next as any);
-    if (error) console.error("[SETTINGS UPSERT]", error);
-  }, [setData]);
-  return [data, update, meta.hydrated] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useAppointments() {
-  const [data, setData, , meta] = useSupabaseCollection<Appointment>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Appointment>(
     "appointments",
     "appointment_date",
-    (q) => q.order("appointment_date", { ascending: false }).order("start_time"),
+    false,
     []
   );
-  const update = useCallback(
-    async (next: Appointment[] | ((prev: Appointment[]) => Appointment[])) => {
-      const value = typeof next === "function" ? (next as (p: Appointment[]) => Appointment[])(data) : next;
-      setData(value);
-    },
-    [data, setData]
-  );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Appointment) => Appointment) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("appointments", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("appointments", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
 }
 
 export function useCustomers() {
-  const [data, setData, , meta] = useSupabaseCollection<Customer>(
+  const [data, update, updateOne, remove, insert, meta] = useSupabaseCollection<Customer>(
     "customers",
     "created_at",
-    (q) => q.order("created_at", { ascending: false }),
+    false,
     []
   );
-  const update = useCallback(
-    async (next: Customer[] | ((prev: Customer[]) => Customer[])) => {
-      const value = typeof next === "function" ? (next as (p: Customer[]) => Customer[])(data) : next;
-      setData(value);
-    },
-    [data, setData]
+  return [data, update, updateOne, remove, insert, meta.hydrated] as const;
+}
+
+export function useBusinessSettings() {
+  const [data, update, meta] = useSupabaseSingleton<BusinessSettings>(
+    "business_settings",
+    "singleton",
+    SEED_SETTINGS as BusinessSettings
   );
-  const updateOne = useCallback(
-    async (id: string, mutator: (item: Customer) => Customer) => {
-      const next = data.map((item) => (item.id === id ? mutator(item) : item));
-      const target = next.find((x) => x.id === id);
-      if (!target) return;
-      setData(next);
-      const idMap = await persistCollection("customers", [target]);
-      if (idMap.size > 0) setData((cur) => remapIds(cur, idMap));
-    },
-    [data, setData]
-  );
-  const remove = useCallback(
-    async (id: string) => {
-      setData(data.filter((x) => x.id !== id));
-      await removeRow("customers", id);
-    },
-    [data, setData]
-  );
-  return [data, update, updateOne, meta.hydrated, remove] as const;
+  return [data, update, meta.hydrated] as const;
 }
 
 // ============= HELPERS =============
 export function nextId(_prefix = "id") {
   return generateUuid();
 }
+
+export { upsertRow, upsertRows, deleteRow, updateRow };

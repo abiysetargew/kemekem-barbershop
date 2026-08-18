@@ -18,7 +18,7 @@ const EMPTY = {
 };
 
 export function ServicesView() {
-  const [services, setServices, , , removeService] = useServices();
+  const [services, setServices, , removeService] = useServices();
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<any>(EMPTY);

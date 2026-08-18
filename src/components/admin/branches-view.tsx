@@ -17,7 +17,7 @@ const EMPTY: any = {
 };
 
 export function BranchesView() {
-  const [branches, setBranches, , , removeBranch] = useBranches();
+  const [branches, setBranches, , removeBranch] = useBranches();
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<any>(EMPTY);

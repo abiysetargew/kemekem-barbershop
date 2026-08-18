@@ -15,7 +15,7 @@ const CATEGORIES = [
 ];
 
 export function GalleryView() {
-  const [gallery, setGallery, , , removeGallery] = useGallery();
+  const [gallery, setGallery, , removeGallery] = useGallery();
   const [creating, setCreating] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [form, setForm] = useState({ image_url: "", category: "haircuts", title: "" });

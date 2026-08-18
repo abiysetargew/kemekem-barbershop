@@ -83,8 +83,45 @@ export function BookingsView() {
     return list;
   }, [appointments, statusFilter, search, dateFilter]);
 
-  const onStatus = (id: string, status: AppointmentStatus) => {
-    updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
+  const onStatus = async (id: string, status: AppointmentStatus) => {
+    const appt = appointments.find((a) => a.id === id);
+    await updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
+    if (!appt) return;
+    const svc = services.find((s) => s.id === appt.service_id);
+    const barber = barbers.find((b) => b.id === appt.barber_id);
+    const branch = branches.find((b) => b.id === appt.branch_id);
+    const type =
+      status === "cancelled"
+        ? "booking_cancelled"
+        : status === "completed"
+        ? "booking_completed"
+        : "status_changed";
+    const messages: Record<string, string> = {
+      checked_in: "Customer arrived",
+      in_service: "Service started",
+      completed: "Service completed",
+      cancelled: "Booking cancelled",
+    };
+    fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        customer_name: appt.customer_name,
+        customer_phone: appt.customer_phone,
+        service_name: svc?.name,
+        barber_name: barber?.name,
+        branch_name: branch?.name,
+        date: appt.appointment_date,
+        time: appt.start_time.slice(0, 5),
+        appointment_number: appt.appointment_number,
+        new_status: messages[status] || status,
+        manage_link:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/manage/${appt.cancel_token}`
+            : undefined,
+      }),
+    }).catch(() => {});
   };
 
   return (

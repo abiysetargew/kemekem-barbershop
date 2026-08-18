@@ -8,7 +8,7 @@ const PLATFORMS = ["instagram","facebook","tiktok","telegram","youtube","x","wha
 
 export function SettingsView() {
   const [settings, setSettings] = useBusinessSettings();
-  const [socials, setSocials, , , removeSocial] = useSocials();
+  const [socials, setSocials, , removeSocial] = useSocials();
   const [saving, setSaving] = useState(false);
 
   const setField = (k: string, v: any) => setSettings({ ...settings, [k]: v });

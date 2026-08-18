@@ -16,7 +16,7 @@ const EMPTY = {
 };
 
 export function CustomersView() {
-  const [customers, , updateOne, , removeCustomer] = useCustomers();
+  const [customers, , updateOne, removeCustomer] = useCustomers();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
