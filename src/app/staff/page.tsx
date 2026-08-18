@@ -447,11 +447,29 @@ export default function StaffPage() {
               <button
                 onClick={async () => {
                   await cancelAppointment(cancelFor.id, cancelReason);
-                  updateOne(cancelFor.id, (x) => ({
-                    ...x,
-                    status: "cancelled",
-                    cancel_reason: cancelReason,
-                  }));
+                  const svcC = services.find((s) => s.id === cancelFor.service_id);
+                  const barberC = barbers.find((b) => b.id === cancelFor.barber_id);
+                  const branchC = branches.find((b) => b.id === cancelFor.branch_id);
+                  fetch("/api/notify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "booking_cancelled",
+                      customer_name: cancelFor.customer_name,
+                      customer_phone: cancelFor.customer_phone,
+                      service_name: svcC?.name,
+                      barber_name: barberC?.name,
+                      branch_name: branchC?.name,
+                      date: cancelFor.appointment_date,
+                      time: cancelFor.start_time.slice(0, 5),
+                      appointment_number: cancelFor.appointment_number,
+                      cancel_reason: cancelReason,
+                      manage_link:
+                        typeof window !== "undefined"
+                          ? `${window.location.origin}/manage/${cancelFor.cancel_token}`
+                          : undefined,
+                    }),
+                  }).catch(() => {});
                   setCancelFor(null);
                 }}
                 className="rounded-full bg-red-500 px-5 py-2 text-sm font-medium text-white hover:bg-red-600"

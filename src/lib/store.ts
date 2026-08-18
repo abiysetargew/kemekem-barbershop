@@ -59,8 +59,15 @@ function useSupabaseCollection<T extends { id: string }>(
         () => fetchAll()
       )
       .subscribe();
+    const onFocus = () => fetchAll();
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus);
+    }
     return () => {
       supabase.removeChannel(channel);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+      }
     };
   }, [fetchAll]);
 
