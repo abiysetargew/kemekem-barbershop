@@ -1,9 +1,10 @@
 "use client";
 // Unified data store for the whole app.
 //
-// Storage model: Supabase (Postgres) is the source of truth.
-// Hooks read from Supabase on mount, subscribe to real-time changes,
-// and write through Supabase on mutations.
+// READS:  Supabase browser client (real-time + initial fetch).
+// WRITES: Next.js API routes with admin client (bypasses RLS, more reliable).
+//
+// After every write, we re-fetch the affected table to ensure UI consistency.
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
@@ -47,95 +48,28 @@ function generateUuid(): string {
   });
 }
 
-// Global registry to share channels across multiple hook instances
-const channelRegistry = new Map<string, { count: number; refetch: () => void }>();
-let channelInstanceCounter = 0;
-
-function acquireChannel(table: string, refetch: () => void): () => void {
-  let entry = channelRegistry.get(table);
-  if (!entry) {
-    const supabase = getSupabase();
-    const channelName = `${table}-rt-${++channelInstanceCounter}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => entry?.refetch()
-      )
-      .subscribe();
-    entry = { count: 0, refetch };
-    channelRegistry.set(table, entry);
-    entry.refetch();
-    // Stash cleanup function on entry
-    (entry as any)._cleanup = () => {
-      supabase.removeChannel(channel);
-      channelRegistry.delete(table);
-    };
-  }
-  entry.count += 1;
-  entry.refetch = refetch;
-  return () => {
-    if (!entry) return;
-    entry.count -= 1;
-    if (entry.count <= 0) {
-      const cleanup = (entry as any)._cleanup;
-      if (cleanup) cleanup();
-    }
-  };
-}
-
-// ============= LOW-LEVEL MUTATIONS =============
-async function upsertRow<T extends { id?: string }>(table: string, row: T): Promise<T> {
-  const supabase = getSupabase();
-  const r: any = { ...row };
-  if (r.id && !isUuid(r.id)) delete r.id;
-  const { data, error } = await supabase.from(table).upsert(r).select().single();
-  if (error) {
-    console.error(`[UPSERT ${table}]`, error, r);
-    throw new Error(error.message);
-  }
-  return data as T;
-}
-
-async function upsertRows<T extends { id?: string }>(table: string, rows: T[]): Promise<T[]> {
-  if (rows.length === 0) return [];
-  const cleaned = rows.map((row) => {
-    const r: any = { ...row };
-    if (r.id && !isUuid(r.id)) delete r.id;
-    return r;
+// ============= SERVER ROUTE HELPERS =============
+async function apiUpsert<T>(table: string, row: T): Promise<T> {
+  const res = await fetch(`/api/admin/table/${table}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(row),
   });
-  const supabase = getSupabase();
-  const { data, error } = await supabase.from(table).upsert(cleaned).select();
-  if (error) {
-    console.error(`[UPSERT-MANY ${table}]`, error);
-    throw new Error(error.message);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Upsert ${table} failed (${res.status})`);
   }
-  return (data ?? []) as T[];
+  return (await res.json()) as T;
 }
 
-async function deleteRow(table: string, id: string): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) {
-    console.error(`[DELETE ${table}]`, error);
-    throw new Error(error.message);
+async function apiDelete(table: string, id: string): Promise<void> {
+  const res = await fetch(`/api/admin/table/${table}?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Delete ${table} failed (${res.status})`);
   }
-}
-
-async function updateRow<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from(table)
-    .update(patch as any)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) {
-    console.error(`[UPDATE ${table}]`, error);
-    throw new Error(error.message);
-  }
-  return data as T;
 }
 
 // ============= COLLECTION HOOK =============
@@ -168,21 +102,16 @@ function useSupabaseCollection<T extends { id: string }>(
 
   useEffect(() => {
     refetch();
-    const release = acquireChannel(table, refetch);
-    const onFocus = () => refetch();
-    if (typeof window !== "undefined") {
-      window.addEventListener("focus", onFocus);
-    }
-    // Polling fallback every 5s — guarantees cross-tab sync even if real-time misses
-    const interval = setInterval(refetch, 5000);
-    return () => {
-      release();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("focus", onFocus);
-      }
-      clearInterval(interval);
-    };
-  }, [refetch, table]);
+    // Polling every 4s for cross-device reliability
+    const interval = setInterval(refetch, 4000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  // Optimistic update helper
+  const setLocal = (next: T[]) => {
+    setData(next);
+    dataRef.current = next;
+  };
 
   const update = useCallback(
     async (next: T[] | ((prev: T[]) => T[])) => {
@@ -190,16 +119,24 @@ function useSupabaseCollection<T extends { id: string }>(
         typeof next === "function"
           ? (next as (p: T[]) => T[])(dataRef.current)
           : next;
-      setData(value);
-      dataRef.current = value;
+      setLocal(value);
+      // Persist each row via API
       try {
-        await upsertRows(table, value);
-      } catch (e) {
+        const saved: T[] = [];
+        for (const row of value) {
+          const r = await apiUpsert(table, row);
+          saved.push(r);
+        }
+        setLocal(saved);
+      } catch (e: any) {
         console.error(`[update ${table}]`, e);
+        setError(e.message);
+        // Refetch to recover
+        refetch();
         throw e;
       }
     },
-    [table]
+    [table, refetch]
   );
 
   const updateOne = useCallback(
@@ -207,50 +144,50 @@ function useSupabaseCollection<T extends { id: string }>(
       const target = dataRef.current.find((x) => x.id === id);
       if (!target) return;
       const updated = mutator(target);
-      const next = dataRef.current.map((item) => (item.id === id ? updated : item));
-      setData(next);
-      dataRef.current = next;
+      // Optimistic
+      const optimistic = dataRef.current.map((item) => (item.id === id ? updated : item));
+      setLocal(optimistic);
       try {
-        const saved = await upsertRow(table, updated);
-        // If Supabase gave us a new id (because old id wasn't UUID), remap
-        if (saved.id !== id) {
-          const remapped = dataRef.current.map((x) => (x.id === id ? saved : x));
-          setData(remapped);
-          dataRef.current = remapped;
-        }
-      } catch (e) {
+        const saved = await apiUpsert(table, updated);
+        // Replace by id (saved.id might differ if old id wasn't UUID)
+        const next = dataRef.current.map((x) => (x.id === id ? saved : x));
+        setLocal(next);
+      } catch (e: any) {
         console.error(`[updateOne ${table}]`, e);
+        setError(e.message);
+        refetch();
         throw e;
       }
     },
-    [table]
+    [table, refetch]
   );
 
   const remove = useCallback(
     async (id: string) => {
       const next = dataRef.current.filter((x) => x.id !== id);
-      setData(next);
-      dataRef.current = next;
+      setLocal(next);
       try {
-        await deleteRow(table, id);
-      } catch (e) {
+        await apiDelete(table, id);
+      } catch (e: any) {
         console.error(`[remove ${table}]`, e);
+        setError(e.message);
+        refetch();
         throw e;
       }
     },
-    [table]
+    [table, refetch]
   );
 
   const insert = useCallback(
     async (row: T): Promise<T> => {
       try {
-        const saved = await upsertRow(table, row);
+        const saved = await apiUpsert(table, row);
         const next = [...dataRef.current, saved];
-        setData(next);
-        dataRef.current = next;
+        setLocal(next);
         return saved;
-      } catch (e) {
+      } catch (e: any) {
         console.error(`[insert ${table}]`, e);
+        setError(e.message);
         throw e;
       }
     },
@@ -286,39 +223,15 @@ function useSupabaseSingleton<T extends Record<string, any>>(
     if (row) {
       setData(row as T);
       dataRef.current = row as T;
-    } else {
-      // Insert default
-      const seed = { ...fallback, id: fixedId };
-      const { data: created, error: insertErr } = await supabase
-        .from(table)
-        .upsert(seed as any)
-        .select()
-        .single();
-      if (!insertErr && created) {
-        setData(created as T);
-        dataRef.current = created as T;
-      }
     }
     setHydrated(true);
   }, [table, fixedId]);
 
   useEffect(() => {
     refetch();
-    const release = acquireChannel(table, refetch);
-    const onFocus = () => refetch();
-    if (typeof window !== "undefined") {
-      window.addEventListener("focus", onFocus);
-    }
-    // Polling fallback every 5s — guarantees cross-tab sync even if real-time misses
-    const interval = setInterval(refetch, 5000);
-    return () => {
-      release();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("focus", onFocus);
-      }
-      clearInterval(interval);
-    };
-  }, [refetch, table]);
+    const interval = setInterval(refetch, 4000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   const update = useCallback(
     async (patch: Partial<T> | T) => {
@@ -326,13 +239,17 @@ function useSupabaseSingleton<T extends Record<string, any>>(
       setData(merged);
       dataRef.current = merged;
       try {
-        await updateRow(table, fixedId, patch as Partial<T>);
-      } catch (e) {
+        const saved = await apiUpsert(table, merged);
+        setData(saved as T);
+        dataRef.current = saved as T;
+      } catch (e: any) {
         console.error(`[update ${table}]`, e);
+        setError(e.message);
+        refetch();
         throw e;
       }
     },
-    [table, fixedId]
+    [table, fixedId, refetch]
   );
 
   return [data, update, { hydrated, error }] as const;
@@ -433,4 +350,4 @@ export function nextId(_prefix = "id") {
   return generateUuid();
 }
 
-export { upsertRow, upsertRows, deleteRow, updateRow };
+export { apiUpsert, apiDelete };

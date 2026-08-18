@@ -32,6 +32,7 @@ import {
   type PaymentMethod,
 } from "@/lib/booking";
 import { cn, formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 const STATUS_ORDER = ["confirmed", "checked_in", "in_service", "completed"] as const;
 type AppointmentStatus = (typeof STATUS_ORDER)[number] | "pending" | "cancelled" | "no_show";
@@ -95,8 +96,12 @@ export default function StaffPage() {
     return list.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
   }, [appointments, date, branchFilter, barberFilter, search]);
 
-  const onStatus = (id: string, status: AppointmentStatus) => {
-    updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
+  const onStatus = async (id: string, status: AppointmentStatus) => {
+    try {
+      await updateOne(id, (a) => ({ ...a, status, updated_at: new Date().toISOString() }));
+    } catch (e: any) {
+      toast.error(e.message || "Status update failed");
+    }
   };
 
   const filteredBarbers = branchFilter === "all"
@@ -343,8 +348,11 @@ export default function StaffPage() {
                       {a.payment_status === "paid" && (
                         <button
                           onClick={async () => {
-                            await unmarkAppointmentPaid(a.id);
-                            updateOne(a.id, (x) => ({ ...x }));
+                            try {
+                              await unmarkAppointmentPaid(a.id);
+                            } catch (e: any) {
+                              toast.error(e.message);
+                            }
                           }}
                           className="inline-flex items-center justify-center gap-1 rounded-full border border-foreground/40 px-3 py-1.5 text-xs text-foreground/70 hover:bg-foreground/5"
                         >
@@ -378,8 +386,12 @@ export default function StaffPage() {
             appt={payFor}
             servicePrice={services.find((s) => s.id === payFor.service_id)?.price || 0}
             onPaid={async (method, amount) => {
-              await markAppointmentPaid(payFor.id, method, amount);
-              updateOne(payFor.id, (x) => ({ ...x }));
+              try {
+                await markAppointmentPaid(payFor.id, method, amount);
+              } catch (e: any) {
+                toast.error(e.message);
+                return;
+              }
               const svcP = services.find((s) => s.id === payFor.service_id);
               const barberP = barbers.find((b) => b.id === payFor.barber_id);
               const branchP = branches.find((b) => b.id === payFor.branch_id);
@@ -446,7 +458,12 @@ export default function StaffPage() {
               </button>
               <button
                 onClick={async () => {
-                  await cancelAppointment(cancelFor.id, cancelReason);
+                  try {
+                    await cancelAppointment(cancelFor.id, cancelReason);
+                  } catch (e: any) {
+                    toast.error(e.message);
+                    return;
+                  }
                   const svcC = services.find((s) => s.id === cancelFor.service_id);
                   const barberC = barbers.find((b) => b.id === cancelFor.barber_id);
                   const branchC = branches.find((b) => b.id === cancelFor.branch_id);
