@@ -25,11 +25,11 @@ export function FeaturedStylists() {
           viewport={{ once: true }}
           className="mx-auto max-w-2xl text-center"
         >
-          <p className="eyebrow text-muted-foreground">Our team</p>
-          <h2 className="heading-2 mt-3">Meet our staylists</h2>
-          <p className="mt-4 text-muted-foreground">
-            Specialists in hair care, styling, and beauty.
-          </p>
+            <p className="eyebrow text-muted-foreground">Our team</p>
+            <h2 className="heading-2 mt-3">Meet our locticians</h2>
+            <p className="mt-4 text-muted-foreground">
+              Specialists in hair care, styling, and beauty.
+            </p>
         </motion.div>
 
         <motion.div

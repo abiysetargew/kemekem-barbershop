@@ -136,7 +136,7 @@ export default function AboutPage() {
               className="mx-auto max-w-2xl text-center"
             >
               <p className="eyebrow text-muted-foreground">Our team</p>
-              <h2 className="heading-2 mt-3">The staylists</h2>
+              <h2 className="heading-2 mt-3">The locticians</h2>
               <p className="mt-4 text-muted-foreground">
                 Specialists in hair care, styling, and beauty.
               </p>
@@ -163,7 +163,7 @@ export default function AboutPage() {
                   <div className="p-5">
                     <h3 className="display text-xl">{b.name}</h3>
                     <p className="text-xs text-muted-foreground">
-                      � Staylist · ⭐ {b.rating} · {branches.find((x) => x.id === b.branch_id)?.name || "Any branch"}
+                      💇 Loctician · ⭐ {b.rating} · {branches.find((x) => x.id === b.branch_id)?.name || "Any branch"}
                     </p>
                     <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{b.bio}</p>
                   </div>
