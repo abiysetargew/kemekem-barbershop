@@ -323,7 +323,7 @@ export function BookingFlow() {
 
             {step === 3 && (
               <Step
-                title={`Choose your ${(selectedService as any)?.requires_role === "stylist" ? "staylist" : "barber"}`}
+                title={`Choose your ${branchFilteredBarbers.length > 0 && branchFilteredBarbers.every((b: any) => b.role === "stylist") ? "staylist" : "barber"}`}
                 subtitle="Or let us match you with the next available."
               >
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -341,7 +341,7 @@ export function BookingFlow() {
                     </div>
                     <div className="flex-1">
                       <div className="font-display text-lg font-medium">
-                        Any {(selectedService as any)?.requires_role === "stylist" ? "staylist" : "barber"}
+                        Any {branchFilteredBarbers.length > 0 && branchFilteredBarbers.every((b: any) => b.role === "stylist") ? "staylist" : "barber"}
                       </div>
                       <div className="text-xs text-muted-foreground">Next available professional</div>
                     </div>
