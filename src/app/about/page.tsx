@@ -89,13 +89,13 @@ export default function AboutPage() {
             className="mx-auto max-w-2xl text-center"
           >
             <p className="eyebrow text-muted-foreground">Our team</p>
-            <h2 className="heading-2 mt-3">The masters</h2>
+            <h2 className="heading-2 mt-3">The barbers</h2>
             <p className="mt-4 text-muted-foreground">
               Skilled, friendly, and trained in the latest styles.
             </p>
           </motion.div>
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {barbers.filter((b) => b.is_active).map((b, i) => (
+            {barbers.filter((b: any) => b.is_active && (b.role || "barber") === "barber").map((b, i) => (
               <motion.div
                 key={b.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -116,7 +116,7 @@ export default function AboutPage() {
                 <div className="p-5">
                   <h3 className="display text-xl">{b.name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    ⭐ {b.rating} · {branches.find((x) => x.id === b.branch_id)?.name || "Any branch"}
+                    💈 Barber · ⭐ {b.rating} · {branches.find((x) => x.id === b.branch_id)?.name || "Any branch"}
                   </p>
                   <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{b.bio}</p>
                 </div>
@@ -125,6 +125,54 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      {barbers.filter((b: any) => b.is_active && b.role === "stylist").length > 0 && (
+        <section className="section-padding">
+          <div className="container-tight">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="mx-auto max-w-2xl text-center"
+            >
+              <p className="eyebrow text-muted-foreground">Our team</p>
+              <h2 className="heading-2 mt-3">The staylists</h2>
+              <p className="mt-4 text-muted-foreground">
+                Specialists in hair care, styling, and beauty.
+              </p>
+            </motion.div>
+            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {barbers.filter((b: any) => b.is_active && b.role === "stylist").map((b, i) => (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                  className="lift overflow-hidden rounded-2xl border border-border bg-card"
+                >
+                  <div className="relative aspect-square bg-muted">
+                    {b.photo_url ? (
+                      <Image src={b.photo_url} alt={b.name} fill sizes="(max-width: 768px) 50vw, 33vw" className="object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-gradient-to-br from-foreground/10 to-foreground/5 text-6xl font-display font-semibold">
+                        {b.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <h3 className="display text-xl">{b.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      � Staylist · ⭐ {b.rating} · {branches.find((x) => x.id === b.branch_id)?.name || "Any branch"}
+                    </p>
+                    <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{b.bio}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="section-padding">
         <div className="container-tight">

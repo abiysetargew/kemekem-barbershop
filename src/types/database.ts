@@ -33,6 +33,7 @@ export interface Service {
   category: string | null;
   is_visible: boolean;
   display_order: number;
+  requires_role: "barber" | "stylist" | "any";
   created_at: string;
   updated_at: string;
 }
@@ -51,7 +52,15 @@ export interface Barber {
   is_featured: boolean;
   rating: number;
   display_order: number;
+  role: "barber" | "stylist";
+  gender: "male" | "female";
   created_at: string;
+  updated_at: string;
+}
+
+export interface Password {
+  id: string; // "admin" | "staff"
+  hash: string;
   updated_at: string;
 }
 

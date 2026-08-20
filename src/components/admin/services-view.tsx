@@ -15,6 +15,7 @@ const EMPTY = {
   category: "",
   is_visible: true,
   display_order: 0,
+  requires_role: "any",
 };
 
 export function ServicesView() {
@@ -276,6 +277,23 @@ export function ServicesView() {
               />
               Visible to customers
             </label>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Performed by
+              </label>
+              <select
+                value={form.requires_role || "any"}
+                onChange={(e) => setField("requires_role", e.target.value)}
+                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+              >
+                <option value="any">Any (barber or staylist)</option>
+                <option value="barber">Barber only</option>
+                <option value="stylist">Staylist only</option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Controls which team members appear in the booking flow.
+              </p>
+            </div>
           </div>
           <div className="mt-6 flex justify-end gap-2">
             <button

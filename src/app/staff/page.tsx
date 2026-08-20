@@ -189,9 +189,11 @@ export default function StaffPage() {
               onChange={(e) => setBarberFilter(e.target.value)}
               className="h-10 flex-1 rounded-xl border border-input bg-card px-3 text-sm"
             >
-              <option value="all">All barbers</option>
+              <option value="all">All team</option>
               {filteredBarbers.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
+                <option key={b.id} value={b.id}>
+                  {b.name} {(b as any).role === "stylist" ? "(Staylist)" : "(Barber)"}
+                </option>
               ))}
             </select>
           </div>
@@ -282,7 +284,9 @@ export default function StaffPage() {
                           {a.customer_phone}
                         </a>
                         <span className="inline-flex items-center gap-1">✂️ {svc?.name}</span>
-                        <span className="inline-flex items-center gap-1">💈 {barber?.name}</span>
+                        <span className="inline-flex items-center gap-1">
+                          {(barber as any)?.role === "stylist" ? "💇" : "💈"} {barber?.name}
+                        </span>
                         <span className="inline-flex items-center gap-1">📍 {branch?.name?.replace(" Branch", "")}</span>
                         <span className="inline-flex items-center gap-1 font-medium text-foreground">
                           {svc ? formatCurrency(svc.price) : ""}

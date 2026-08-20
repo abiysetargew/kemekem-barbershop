@@ -9,15 +9,27 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    if (password === "staff2026" || password === "kemekem2026") {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "staff", password }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        toast.error(j.error || "Wrong password");
+        setLoading(false);
+        return;
+      }
       sessionStorage.setItem("kemekem_staff", "true");
+      document.cookie = `kemekem_staff=true; path=/; max-age=86400; SameSite=Lax`;
       toast.success("Welcome");
       router.push("/staff");
-    } else {
-      toast.error("Wrong password");
+    } catch (err: any) {
+      toast.error(err.message || "Login failed");
       setLoading(false);
     }
   };
@@ -56,9 +68,6 @@ export default function StaffLoginPage() {
             )}
           </button>
         </form>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Demo password: <span className="font-mono">staff2026</span>
-        </p>
       </div>
     </div>
   );

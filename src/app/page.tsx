@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/hero";
 import { WhyChooseUs } from "@/components/sections/why-choose-us";
 import { Services } from "@/components/sections/services";
 import { FeaturedBarbers } from "@/components/sections/featured-barbers";
+import { FeaturedStylists } from "@/components/sections/featured-stylists";
 import { Testimonials } from "@/components/sections/testimonials";
 import { Branches } from "@/components/sections/branches";
 import { FAQ } from "@/components/sections/faq";
@@ -24,6 +25,7 @@ export default function HomePage() {
       <WhyChooseUs />
       <Services />
       <FeaturedBarbers />
+      <FeaturedStylists />
       <Testimonials />
       <Branches />
       <CTASection />

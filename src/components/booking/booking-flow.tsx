@@ -109,11 +109,19 @@ export function BookingFlow() {
   const selectedBarber = barbers.find((b) => b.id === barberId);
 
   const branchFilteredBarbers = useMemo(() => {
-    if (!branchId) return barbers.filter((b) => b.is_active);
-    return barbers.filter(
-      (b) => b.is_active && (!b.branch_id || b.branch_id === branchId)
-    );
-  }, [barbers, branchId]);
+    let list = barbers.filter((b) => b.is_active);
+    if (branchId) {
+      list = list.filter((b) => !b.branch_id || b.branch_id === branchId);
+    }
+    // Filter by service requires_role
+    const required = (selectedService as any)?.requires_role;
+    if (required === "barber") {
+      list = list.filter((b: any) => (b.role || "barber") === "barber");
+    } else if (required === "stylist") {
+      list = list.filter((b: any) => b.role === "stylist");
+    }
+    return list;
+  }, [barbers, branchId, selectedService]);
 
   const visibleServices = services.filter((s) => s.is_visible);
 
@@ -314,7 +322,10 @@ export function BookingFlow() {
             )}
 
             {step === 3 && (
-              <Step title="Choose your barber" subtitle="Or let us match you with the next available.">
+              <Step
+                title={`Choose your ${(selectedService as any)?.requires_role === "stylist" ? "staylist" : "barber"}`}
+                subtitle="Or let us match you with the next available."
+              >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     onClick={() => setBarberId("any")}
@@ -329,7 +340,9 @@ export function BookingFlow() {
                       ✨
                     </div>
                     <div className="flex-1">
-                      <div className="font-display text-lg font-medium">Any barber</div>
+                      <div className="font-display text-lg font-medium">
+                        Any {(selectedService as any)?.requires_role === "stylist" ? "staylist" : "barber"}
+                      </div>
                       <div className="text-xs text-muted-foreground">Next available professional</div>
                     </div>
                     {barberId === "any" && <Check className="h-5 w-5 text-foreground" />}
@@ -350,7 +363,9 @@ export function BookingFlow() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{b.name}</div>
-                        <div className="text-xs text-muted-foreground">⭐ {b.rating}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {(b as any).role === "stylist" ? "💇 Staylist" : "💈 Barber"} · ⭐ {b.rating}
+                        </div>
                       </div>
                       {barberId === b.id && <Check className="h-5 w-5 text-foreground" />}
                     </button>

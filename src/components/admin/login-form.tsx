@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-const ADMIN_PASSWORD = "kemekem2026";
-
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -16,7 +14,6 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-      // If already authenticated, skip the login page
   useEffect(() => {
     if (
       typeof window !== "undefined" &&
@@ -30,14 +27,25 @@ export function LoginForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    if (password === ADMIN_PASSWORD) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin", password }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        toast.error(j.error || "Invalid password");
+        setLoading(false);
+        return;
+      }
       sessionStorage.setItem("kemekem_admin", "true");
       document.cookie = `kemekem_admin=true; path=/; max-age=86400; SameSite=Lax`;
       toast.success("Welcome back!");
       const next = searchParams.get("next") || "/admin/dashboard";
       window.location.href = next;
-    } else {
-      toast.error("Invalid password");
+    } catch (err: any) {
+      toast.error(err.message || "Login failed");
       setLoading(false);
     }
   };
@@ -66,9 +74,6 @@ export function LoginForm() {
           placeholder="••••••••"
           autoComplete="off"
         />
-        <p className="text-xs text-muted-foreground">
-          Demo password: <span className="font-mono">kemekem2026</span>
-        </p>
       </div>
       <Button type="submit" variant="gold" size="lg" className="w-full" disabled={loading}>
         {loading ? (

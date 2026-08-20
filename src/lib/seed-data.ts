@@ -70,7 +70,7 @@ export const SEED_BRANCHES: Branch[] = [
   },
 ];
 
-export const SEED_SERVICES: Service[] = [
+export const SEED_SERVICES: any[] = [
   {
     id: "haircut",
     shop_id: null,
@@ -223,7 +223,7 @@ export const SEED_SERVICES: Service[] = [
   },
 ];
 
-export const SEED_BARBERS: Barber[] = [
+export const SEED_BARBERS: any[] = [
   {
     id: "bernabas",
     shop_id: null,

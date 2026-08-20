@@ -12,6 +12,7 @@ import {
   LogOut,
   Scissors as ScissorsIcon,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -24,6 +25,7 @@ import { GalleryView } from "@/components/admin/gallery-view";
 import { BranchesView } from "@/components/admin/branches-view";
 import { SettingsView } from "@/components/admin/settings-view";
 import { ReportsView } from "@/components/admin/reports-view";
+import { StylistsView } from "@/components/admin/stylists-view";
 import { cn } from "@/lib/utils";
 
 type Tab =
@@ -31,6 +33,7 @@ type Tab =
   | "bookings"
   | "services"
   | "barbers"
+  | "stylists"
   | "customers"
   | "gallery"
   | "branches"
@@ -46,6 +49,7 @@ const NAV: {
   { id: "bookings", label: "Bookings", icon: Calendar },
   { id: "services", label: "Services", icon: Scissors },
   { id: "barbers", label: "Barbers", icon: UserCircle },
+  { id: "stylists", label: "Staylists", icon: Sparkles },
   { id: "customers", label: "Customers", icon: Users },
   { id: "gallery", label: "Gallery", icon: ImageIcon },
   { id: "branches", label: "Branches", icon: Building2 },
@@ -196,6 +200,7 @@ function TabHost({ tab }: { tab: Tab }) {
   if (tab === "bookings") return <BookingsView />;
   if (tab === "services") return <ServicesView />;
   if (tab === "barbers") return <BarbersView />;
+  if (tab === "stylists") return <StylistsView />;
   if (tab === "customers") return <CustomersView />;
   if (tab === "gallery") return <GalleryView />;
   if (tab === "branches") return <BranchesView />;

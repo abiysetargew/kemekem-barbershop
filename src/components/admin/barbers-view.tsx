@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Pencil, Trash2, X, Loader2, Phone, Star } from "lucide-react";
 import { useBarbers, useBranches } from "@/lib/store";
 import type { Barber } from "@/types/database";
@@ -21,6 +21,8 @@ const EMPTY: any = {
   is_featured: false,
   rating: 5,
   display_order: 0,
+  role: "barber",
+  gender: "male",
 };
 
 export function BarbersView() {
@@ -31,9 +33,14 @@ export function BarbersView() {
   const [form, setForm] = useState<any>(EMPTY);
   const [saving, setSaving] = useState(false);
 
+  const filteredBarbers = useMemo(
+    () => barbers.filter((b: any) => (b.role || "barber") === "barber"),
+    [barbers]
+  );
+
   const open = (b?: Barber) => {
-    if (b) { setEditing(b); setForm({ ...b }); }
-    else { setCreating(true); setForm({ ...EMPTY, display_order: barbers.length + 1 }); }
+    if (b) { setEditing(b); setForm({ ...b, role: "barber" }); }
+    else { setCreating(true); setForm({ ...EMPTY, display_order: filteredBarbers.length + 1 }); }
   };
   const close = () => { setEditing(null); setCreating(false); setForm(EMPTY); };
   const setField = (k: string, v: any) => setForm({ ...form, [k]: v });
@@ -43,11 +50,10 @@ export function BarbersView() {
     setSaving(true);
     try {
       if (editing) {
-        await setBarbers(barbers.map((b) => b.id === editing.id ? { ...form, id: editing.id } : b));
+        await setBarbers(barbers.map((b) => b.id === editing.id ? { ...form, id: editing.id, role: "barber" } : b));
         toast.success("Updated");
       } else {
-        const id = `barb-${Date.now().toString(36)}`;
-        await setBarbers([...barbers, { ...form, id }]);
+        await setBarbers([...barbers, { ...form, role: "barber" }]);
         toast.success("Added");
       }
       close();
@@ -67,7 +73,7 @@ export function BarbersView() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow text-muted-foreground">Our team</p>
-          <h1 className="heading-2 mt-1">{barbers.length} barbers</h1>
+          <h1 className="heading-2 mt-1">{filteredBarbers.length} barbers</h1>
         </div>
         <button onClick={() => open()} className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90">
           <Plus className="h-4 w-4" /> Add barber
@@ -75,7 +81,7 @@ export function BarbersView() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {barbers.map((b) => {
+        {filteredBarbers.map((b) => {
           const branch = branches.find((x) => x.id === b.branch_id);
           return (
             <div key={b.id} className={cn("rounded-2xl border border-border bg-card p-5 transition-all hover:bg-muted/20", !b.is_active && "opacity-50")}>

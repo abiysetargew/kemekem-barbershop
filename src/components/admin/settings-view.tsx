@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Lock, Eye, EyeOff } from "lucide-react";
 import { useBusinessSettings, useSocials } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -117,6 +117,117 @@ export function SettingsView() {
           Add social link
         </button>
       </div>
+
+      {/* Passwords */}
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h2 className="heading-4 mb-1">Passwords</h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Change the passwords for the admin dashboard and the staff sign-in.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <PasswordCard role="admin" label="Admin password" />
+          <PasswordCard role="staff" label="Staff password" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PasswordCard({ role, label }: { role: "admin" | "staff"; label: string }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const onSave = async () => {
+    if (!current || !next) {
+      toast.error("Fill both fields");
+      return;
+    }
+    if (next !== confirm) {
+      toast.error("New password and confirm do not match");
+      return;
+    }
+    if (next.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, current, next }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        toast.error(j.error || "Failed");
+      } else {
+        toast.success(`${label} updated`);
+        setCurrent("");
+        setNext("");
+        setConfirm("");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-background p-4">
+      <div className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs uppercase tracking-wider text-muted-foreground">Current</label>
+        <div className="relative">
+          <input
+            type={show ? "text" : "password"}
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Current password"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
+          >
+            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs uppercase tracking-wider text-muted-foreground">New password</label>
+        <input
+          type={show ? "text" : "password"}
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          placeholder="At least 6 characters"
+          autoComplete="off"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs uppercase tracking-wider text-muted-foreground">Confirm new</label>
+        <input
+          type={show ? "text" : "password"}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          autoComplete="off"
+        />
+      </div>
+      <button
+        onClick={onSave}
+        disabled={busy}
+        className="w-full rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "Saving…" : "Update password"}
+      </button>
     </div>
   );
 }
