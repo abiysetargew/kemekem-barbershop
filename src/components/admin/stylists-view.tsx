@@ -54,6 +54,13 @@ export function StylistsView() {
 
   const setField = (k: string, v: any) => setForm({ ...form, [k]: v });
 
+  const cleanForm = (f: any) => {
+    const cleaned: any = { ...f, role: "stylist", gender: f.gender || "female" };
+    // Convert empty strings to null for nullable UUID fields
+    if (cleaned.branch_id === "" || cleaned.branch_id === undefined) cleaned.branch_id = null;
+    return cleaned;
+  };
+
   const save = async () => {
     if (!form.name) {
       toast.error("Name required");
@@ -61,17 +68,18 @@ export function StylistsView() {
     }
     setSaving(true);
     try {
+      const payload = cleanForm(form);
       if (editing) {
         await setBarbers(
           barbers.map((b) =>
-            b.id === editing.id ? { ...form, id: editing.id, role: "stylist" } : b
+            b.id === editing.id ? { ...payload, id: editing.id } : b
           )
         );
         toast.success("Updated");
       } else {
         await setBarbers([
           ...barbers,
-          { ...form, role: "stylist" },
+          payload,
         ]);
         toast.success("Added");
       }

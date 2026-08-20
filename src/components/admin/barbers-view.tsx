@@ -45,15 +45,22 @@ export function BarbersView() {
   const close = () => { setEditing(null); setCreating(false); setForm(EMPTY); };
   const setField = (k: string, v: any) => setForm({ ...form, [k]: v });
 
+  const cleanForm = (f: any) => {
+    const cleaned: any = { ...f, role: "barber", gender: f.gender || "male" };
+    if (cleaned.branch_id === "" || cleaned.branch_id === undefined) cleaned.branch_id = null;
+    return cleaned;
+  };
+
   const save = async () => {
     if (!form.name) { toast.error("Name required"); return; }
     setSaving(true);
     try {
+      const payload = cleanForm(form);
       if (editing) {
-        await setBarbers(barbers.map((b) => b.id === editing.id ? { ...form, id: editing.id, role: "barber" } : b));
+        await setBarbers(barbers.map((b) => b.id === editing.id ? { ...payload, id: editing.id } : b));
         toast.success("Updated");
       } else {
-        await setBarbers([...barbers, { ...form, role: "barber" }]);
+        await setBarbers([...barbers, payload]);
         toast.success("Added");
       }
       close();
@@ -127,7 +134,7 @@ export function BarbersView() {
             <F label="Branch">
               <select
                 value={form.branch_id || ""}
-                onChange={(e) => setField("branch_id", e.target.value)}
+                onChange={(e) => setField("branch_id", e.target.value || null)}
                 className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
               >
                 <option value="">Any branch</option>
