@@ -58,6 +58,10 @@ export function StylistsView() {
     const cleaned: any = { ...f, role: "stylist", gender: f.gender || "female" };
     // Convert empty strings to null for nullable UUID fields
     if (cleaned.branch_id === "" || cleaned.branch_id === undefined) cleaned.branch_id = null;
+    // Strip empty/non-UUID id so DB can generate a fresh one
+    if (!cleaned.id || cleaned.id === "" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned.id)) {
+      delete cleaned.id;
+    }
     return cleaned;
   };
 

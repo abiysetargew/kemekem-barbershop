@@ -17,8 +17,15 @@ export async function POST(
 
     // Strip id if it's not a valid UUID — let DB generate
     const row: any = { ...body };
-    if (row.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id)) {
+    if (row.id === "" || row.id === null || row.id === undefined) {
       delete row.id;
+    } else if (typeof row.id === "string" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id)) {
+      delete row.id;
+    }
+
+    // Convert empty-string values to null (Postgres rejects '' for nullable UUIDs)
+    for (const k of Object.keys(row)) {
+      if (row[k] === "") row[k] = null;
     }
 
     const { data, error } = await supabase
@@ -51,6 +58,10 @@ export async function PATCH(
     }
 
     const { id, ...patch } = body;
+    // Convert empty-string values to null in patch
+    for (const k of Object.keys(patch)) {
+      if (patch[k] === "") patch[k] = null;
+    }
     const { data, error } = await supabase
       .from(name)
       .update(patch)

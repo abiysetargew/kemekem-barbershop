@@ -48,6 +48,9 @@ export function BarbersView() {
   const cleanForm = (f: any) => {
     const cleaned: any = { ...f, role: "barber", gender: f.gender || "male" };
     if (cleaned.branch_id === "" || cleaned.branch_id === undefined) cleaned.branch_id = null;
+    if (!cleaned.id || cleaned.id === "" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned.id)) {
+      delete cleaned.id;
+    }
     return cleaned;
   };
 
