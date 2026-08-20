@@ -256,7 +256,7 @@ export function BookingFlow() {
           >
             {step === 1 && (
               <Step title="Choose a branch" subtitle="Both branches follow the same premium standards.">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   {branches.filter((b) => b.is_active).map((b) => (
                     <button
                       key={b.id}
@@ -284,7 +284,7 @@ export function BookingFlow() {
 
             {step === 2 && (
               <Step title="Choose a service" subtitle="Pick what you'd like today.">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   {visibleServices.map((s) => (
                     <button
                       key={s.id}
@@ -319,7 +319,7 @@ export function BookingFlow() {
                 title="Choose your barber / loctician"
                 subtitle="Pick a specific professional, or let us match you with the next available."
               >
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     onClick={() => setBarberId("any")}
                     className={cn(
@@ -349,14 +349,20 @@ export function BookingFlow() {
                           : "border-border hover:border-foreground/40"
                       )}
                     >
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-foreground text-background font-display text-base font-semibold">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background font-display text-lg font-semibold">
                         {b.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{b.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {(b as any).role === "stylist" ? "� Loctician" : "💈 Barber"} · ⭐ {b.rating}
+                          {(b as any).role === "stylist" ? "💇 Loctician" : "💈 Barber"} · ⭐ {b.rating}
+                          {b.experience_years ? ` · ${b.experience_years}+ yrs` : ""}
                         </div>
+                        {b.bio && (
+                          <div className="mt-1 line-clamp-1 text-[11px] text-muted-foreground/80">
+                            {b.bio}
+                          </div>
+                        )}
                       </div>
                       {barberId === b.id && <Check className="h-5 w-5 text-foreground" />}
                     </button>
